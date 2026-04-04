@@ -1,5 +1,5 @@
 # ======================================================================
-# ITEM ANALYSIS - STREAMLIT VERSION (FIXED)
+# ITEM ANALYSIS - STREAMLIT VERSION (FINAL FIXED)
 # ======================================================================
 
 import streamlit as st
@@ -69,6 +69,16 @@ def interpretasi_d(d, batas_cukup, batas_baik):
         return "Sangat Baik", "Soal sangat baik dalam membedakan siswa."
 
 # ======================================================================
+# INITIALIZE SESSION STATE
+# ======================================================================
+if 'df' not in st.session_state:
+    st.session_state.df = None
+if 'kunci_df' not in st.session_state:
+    st.session_state.kunci_df = None
+if 'file_loaded' not in st.session_state:
+    st.session_state.file_loaded = False
+
+# ======================================================================
 # INPUT DATA
 # ======================================================================
 tab1, tab2 = st.tabs(["📁 Upload Data", "📊 Hasil Analisis"])
@@ -80,32 +90,26 @@ with tab1:
     
     if file_siswa is not None:
         try:
-            # Baca file dengan penanganan error
-            file_content = file_siswa.read()
-            if len(file_content) == 0:
-                st.error("❌ File kosong! Silakan upload file yang valid.")
+            file_siswa.seek(0)
+            df = pd.read_csv(file_siswa, dtype=str)
+            
+            if df.empty:
+                st.error("❌ Data kosong! Silakan periksa file Anda.")
+            elif len(df.columns) < 2:
+                st.error("❌ Data harus memiliki minimal 2 kolom (kolom siswa + minimal 1 kolom soal)")
             else:
-                # Reset pointer dan baca
-                file_siswa.seek(0)
-                df = pd.read_csv(file_siswa, dtype=str)
+                st.success(f"✅ File terupload: {file_siswa.name}")
+                st.write(f"Dimensi: {df.shape[0]} baris × {df.shape[1]} kolom")
+                st.subheader("Preview Data")
+                st.dataframe(df.head())
                 
-                if df.empty:
-                    st.error("❌ Data kosong! Silakan periksa file Anda.")
-                elif len(df.columns) < 2:
-                    st.error("❌ Data harus memiliki minimal 2 kolom (kolom siswa + minimal 1 kolom soal)")
-                else:
-                    st.success(f"✅ File terupload: {file_siswa.name}")
-                    st.write(f"Dimensi: {df.shape[0]} baris × {df.shape[1]} kolom")
-                    st.subheader("Preview Data")
-                    st.dataframe(df.head())
-                    
-                    # Simpan ke session state
-                    st.session_state['df'] = df
-                    st.session_state['file_loaded'] = True
+                st.session_state.df = df
+                st.session_state.file_loaded = True
         except Exception as e:
             st.error(f"❌ Error membaca file: {str(e)}")
     else:
-        st.session_state['file_loaded'] = False
+        if not st.session_state.file_loaded:
+            st.info("Belum ada file diupload")
     
     st.subheader("Upload File Kunci Jawaban (Opsional)")
     st.caption("Kosongkan jika data sudah dalam format 1/0")
@@ -116,18 +120,23 @@ with tab1:
         try:
             file_kunci.seek(0)
             df_kunci = pd.read_csv(file_kunci, dtype=str)
-            st.success(f"✅ File kunci terupload")
-            st.session_state['kunci'] = df_kunci
+            
+            if not df_kunci.empty:
+                st.success(f"✅ File kunci terupload")
+                st.session_state.kunci_df = df_kunci
+            else:
+                st.warning("⚠️ File kunci kosong")
         except Exception as e:
-            st.error(f"❌ Error membaca file kunci: {str(e)}")
+            st.warning(f"⚠️ Error membaca file kunci: {str(e)}")
+            st.session_state.kunci_df = None
 
 # ======================================================================
 # PROSES ANALISIS
 # ======================================================================
-if st.session_state.get('file_loaded', False):
+if st.session_state.file_loaded and st.session_state.df is not None:
     
-    df = st.session_state['df']
-    df_kunci = st.session_state.get('kunci', None)
+    df = st.session_state.df.copy()
+    df_kunci = st.session_state.kunci_df
     
     # Deteksi kolom
     kolom_soal = df.columns[1:].tolist()
@@ -149,12 +158,19 @@ if st.session_state.get('file_loaded', False):
         
         # Baca kunci
         kunci = None
-        if mode == "pilihan_ganda" and df_kunci is not None:
-            kunci = [str(x).strip().upper() for x in df_kunci.iloc[0, 1:].values]
+        if mode == "pilihan_ganda" and df_kunci is not None and not df_kunci.empty:
+            try:
+                if df_kunci.shape[1] > 1:
+                    kunci = [str(x).strip().upper() for x in df_kunci.iloc[0, 1:].values]
+                else:
+                    kunci = [str(df_kunci.iloc[0, 0]).strip().upper()]
+            except Exception as e:
+                st.warning(f"⚠️ Gagal membaca kunci: {str(e)}")
+                kunci = None
         
         # Konversi ke skor
         df_skor = pd.DataFrame()
-        if mode == "pilihan_ganda" and kunci:
+        if mode == "pilihan_ganda" and kunci and len(kunci) == len(kolom_soal):
             for i, soal in enumerate(kolom_soal):
                 kunci_soal = kunci[i] if i < len(kunci) else None
                 if kunci_soal:
@@ -192,7 +208,7 @@ if st.session_state.get('file_loaded', False):
             else:
                 ba = pd.to_numeric(kel_atas[soal], errors='coerce').sum()
                 bb = pd.to_numeric(kel_bawah[soal], errors='coerce').sum()
-            d_val = (ba - bb) / n_kelompok
+            d_val = (ba - bb) / n_kelompok if n_kelompok > 0 else 0
             d_vals.append(d_val)
             kat_d, makna_d = interpretasi_d(d_val, batas_cukup, batas_baik)
             
@@ -232,8 +248,10 @@ if st.session_state.get('file_loaded', False):
             semua_opsi = set()
             for soal in kolom_soal:
                 nilai = df[soal].astype(str).str.strip().str.upper().dropna()
-                semua_opsi.update(nilai)
-            opsi_list = sorted([o for o in semua_opsi if o.isalpha() and len(o) == 1])
+                for n in nilai:
+                    if n.isalpha() and len(n) == 1:
+                        semua_opsi.add(n)
+            opsi_list = sorted(semua_opsi)
             
             for i, soal in enumerate(kolom_soal):
                 kunci_soal = kunci[i] if i < len(kunci) else None
@@ -281,7 +299,6 @@ if st.session_state.get('file_loaded', False):
             st.markdown("---")
             st.markdown("## 📊 VISUALISASI")
             
-            # Layout 2 kolom untuk grafik
             col1, col2 = st.columns(2)
             
             # Grafik 1: Tingkat Kesukaran
@@ -350,19 +367,21 @@ if st.session_state.get('file_loaded', False):
             # Grafik 5: Distribusi Skor
             with col1:
                 fig5, ax5 = plt.subplots(figsize=(8, 5))
-                bins = range(int(df['skor_total'].min()), int(df['skor_total'].max())+2)
+                min_skor = int(df['skor_total'].min())
+                max_skor = int(df['skor_total'].max())
+                bins = range(min_skor, max_skor+2)
                 ax5.hist(df['skor_total'], bins=bins, edgecolor='black', alpha=0.7, color='skyblue')
                 ax5.axvline(df['skor_total'].mean(), color='red', linestyle='--', label=f"Mean={df['skor_total'].mean():.1f}")
                 ax5.axvline(df['skor_total'].median(), color='green', linestyle='--', label=f"Median={df['skor_total'].median():.1f}")
                 ax5.set_xlabel('Skor Total')
                 ax5.set_ylabel('Frekuensi')
-                ax5.set_title(f'5. Distribusi Skor Total')
+                ax5.set_title('5. Distribusi Skor Total')
                 ax5.legend()
                 ax5.grid(axis='y', alpha=0.3)
                 st.pyplot(fig5)
                 plt.close()
             
-            # Grafik 6: Pie Chart Rekomendasi
+            # Grafik 6: Pie Chart
             with col2:
                 fig6, ax6 = plt.subplots(figsize=(8, 5))
                 soal_digunakan = sum(1 for r in df_final['Rekomendasi'] if r == 'DIGUNAKAN')
@@ -376,11 +395,10 @@ if st.session_state.get('file_loaded', False):
                 st.pyplot(fig6)
                 plt.close()
             
-            # Heatmap Korelasi
+            # Heatmap
             if n_soal > 1:
                 st.markdown("---")
                 st.markdown("## 🔥 Heatmap Korelasi Antar Butir")
-                
                 fig7, ax7 = plt.subplots(figsize=(max(8, n_soal*0.5), max(6, n_soal*0.4)))
                 korelasi = df_skor.corr()
                 mask = np.triu(np.ones_like(korelasi, dtype=bool))
