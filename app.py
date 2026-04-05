@@ -1,7 +1,7 @@
 # ======================================================================
 # ITEM ANALYSIS - STREAMLIT VERSION (LENGKAP)
 # ======================================================================
-# Komponen lengkap:
+# Fitur LENGKAP:
 # 1. p (tingkat kesukaran)
 # 2. q (1-p)
 # 3. pq (varians butir)
@@ -14,6 +14,10 @@
 # 10. Alpha if item deleted
 # 11. SEM (standard error measurement)
 # 12. Analisis pengecoh
+# 13. Visualisasi (7 grafik)
+# 14. Parameter ambang batas (slider)
+# 15. Export Excel multi-sheet
+# 16. Max file 5MB
 # ======================================================================
 
 import streamlit as st
@@ -31,7 +35,7 @@ warnings.filterwarnings('ignore')
 # ======================================================================
 st.set_page_config(page_title="Item Analysis Tool", page_icon="📊", layout="wide")
 
-st.title("📊 ITEM ANALYSIS TOOL (LENGKAP)")
+st.title("📊 ITEM ANALYSIS TOOL")
 st.markdown("---")
 
 # ======================================================================
@@ -240,7 +244,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
             d_vals.append(d_val)
             
             # 6. SE = sqrt(pq / n_siswa)
-            se_val = np.sqrt(pq_val / n_siswa)
+            se_val = np.sqrt(pq_val / n_siswa) if n_siswa > 0 else 0
             se_vals.append(se_val)
             
             # 7. Validitas corrected
@@ -339,7 +343,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
         ])
         
         # ======================================================================
-        # TAMPILKAN HASIL
+        # TAMPILKAN HASIL DI TAB2
         # ======================================================================
         with tab2:
             st.markdown("## 📋 REKAP ITEM ANALYSIS (LENGKAP)")
@@ -364,6 +368,156 @@ if st.session_state.file_loaded and st.session_state.df is not None:
             
             st.dataframe(df_final, use_container_width=True)
             
+            st.markdown("---")
+            st.markdown("## 📊 VISUALISASI")
+            
+            col1, col2 = st.columns(2)
+            
+            # Grafik 1: Tingkat Kesukaran (p)
+            with col1:
+                fig1, ax1 = plt.subplots(figsize=(8, 5))
+                warna_p = ['red' if x < batas_sukar else ('green' if x <= batas_mudah else 'orange') for x in p_vals]
+                ax1.bar(range(1, n_soal+1), p_vals, color=warna_p)
+                ax1.axhline(batas_sukar, color='red', linestyle='--', label=f'Batas Sukar ({batas_sukar})')
+                ax1.axhline(batas_mudah, color='orange', linestyle='--', label=f'Batas Mudah ({batas_mudah})')
+                ax1.set_xlabel('Nomor Soal')
+                ax1.set_ylabel('Tingkat Kesukaran (p)')
+                ax1.set_title('1. Tingkat Kesukaran (p)')
+                ax1.set_xticks(range(1, n_soal+1))
+                ax1.set_ylim(0, 1)
+                ax1.legend()
+                ax1.grid(axis='y', alpha=0.3)
+                st.pyplot(fig1)
+                plt.close()
+            
+            # Grafik 2: q = 1-p
+            with col2:
+                fig2, ax2 = plt.subplots(figsize=(8, 5))
+                ax2.bar(range(1, n_soal+1), q_vals, color='blue', alpha=0.7)
+                ax2.set_xlabel('Nomor Soal')
+                ax2.set_ylabel('q = 1 - p')
+                ax2.set_title('2. Proporsi Jawaban Salah (q)')
+                ax2.set_xticks(range(1, n_soal+1))
+                ax2.set_ylim(0, 1)
+                ax2.grid(axis='y', alpha=0.3)
+                st.pyplot(fig2)
+                plt.close()
+            
+            # Grafik 3: Daya Beda (D)
+            with col1:
+                fig3, ax3 = plt.subplots(figsize=(8, 5))
+                warna_d = ['green' if x >= batas_baik else ('orange' if x >= batas_cukup else 'red') for x in d_vals]
+                ax3.bar(range(1, n_soal+1), d_vals, color=warna_d)
+                ax3.axhline(batas_baik, color='green', linestyle='--', label=f'Sangat Baik ({batas_baik})')
+                ax3.axhline(batas_cukup, color='orange', linestyle='--', label=f'Cukup ({batas_cukup})')
+                ax3.set_xlabel('Nomor Soal')
+                ax3.set_ylabel('Daya Beda (D)')
+                ax3.set_title('3. Daya Beda (D)')
+                ax3.set_xticks(range(1, n_soal+1))
+                ax3.set_ylim(-1, 1)
+                ax3.legend()
+                ax3.grid(axis='y', alpha=0.3)
+                st.pyplot(fig3)
+                plt.close()
+            
+            # Grafik 4: Validitas (r_it)
+            with col2:
+                fig4, ax4 = plt.subplots(figsize=(8, 5))
+                warna_r = ['green' if x >= batas_valid else 'red' for x in r_vals]
+                ax4.bar(range(1, n_soal+1), r_vals, color=warna_r)
+                ax4.axhline(batas_valid, color='green', linestyle='--', label=f'Batas Valid ({batas_valid})')
+                ax4.axhline(0, color='black', linestyle='-', linewidth=0.5)
+                ax4.set_xlabel('Nomor Soal')
+                ax4.set_ylabel('Validitas (r_it)')
+                ax4.set_title('4. Validitas Butir (Corrected)')
+                ax4.set_xticks(range(1, n_soal+1))
+                ax4.set_ylim(-1, 1)
+                ax4.legend()
+                ax4.grid(axis='y', alpha=0.3)
+                st.pyplot(fig4)
+                plt.close()
+            
+            # Grafik 5: p_high vs p_low
+            with col1:
+                fig5, ax5 = plt.subplots(figsize=(8, 5))
+                x = range(1, n_soal+1)
+                ax5.plot(x, p_high_vals, 'o-', color='green', label='p_high (Kelompok Atas)', linewidth=2, markersize=8)
+                ax5.plot(x, p_low_vals, 's-', color='red', label='p_low (Kelompok Bawah)', linewidth=2, markersize=8)
+                ax5.set_xlabel('Nomor Soal')
+                ax5.set_ylabel('Proporsi Benar')
+                ax5.set_title('5. Perbandingan p_high dan p_low')
+                ax5.set_xticks(range(1, n_soal+1))
+                ax5.set_ylim(0, 1)
+                ax5.legend()
+                ax5.grid(axis='both', alpha=0.3)
+                st.pyplot(fig5)
+                plt.close()
+            
+            # Grafik 6: Rekomendasi
+            with col2:
+                fig6, ax6 = plt.subplots(figsize=(8, 5))
+                warna_rek = ['green' if r == 'DIGUNAKAN' else ('orange' if r == 'REVISI' else 'red') for r in df_final['Rekomendasi']]
+                ax6.bar(range(1, n_soal+1), [1]*n_soal, color=warna_rek)
+                ax6.set_xlabel('Nomor Soal')
+                ax6.set_title('6. Rekomendasi Akhir')
+                ax6.set_xticks(range(1, n_soal+1))
+                ax6.set_yticks([])
+                st.pyplot(fig6)
+                plt.close()
+            
+            # Grafik 7: Distribusi Skor Total
+            st.markdown("---")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig7, ax7 = plt.subplots(figsize=(8, 5))
+                min_skor = int(df['skor_total'].min())
+                max_skor = int(df['skor_total'].max())
+                bins = range(min_skor, max_skor+2)
+                ax7.hist(df['skor_total'], bins=bins, edgecolor='black', alpha=0.7, color='skyblue')
+                ax7.axvline(df['skor_total'].mean(), color='red', linestyle='--', label=f"Mean={df['skor_total'].mean():.1f}")
+                ax7.axvline(df['skor_total'].median(), color='green', linestyle='--', label=f"Median={df['skor_total'].median():.1f}")
+                ax7.set_xlabel('Skor Total')
+                ax7.set_ylabel('Frekuensi')
+                ax7.set_title('7. Distribusi Skor Total')
+                ax7.legend()
+                ax7.grid(axis='y', alpha=0.3)
+                st.pyplot(fig7)
+                plt.close()
+            
+            # Grafik 8: Pie Chart Rekomendasi
+            with col2:
+                fig8, ax8 = plt.subplots(figsize=(6, 5))
+                soal_digunakan = sum(1 for r in df_final['Rekomendasi'] if r == 'DIGUNAKAN')
+                soal_revisi = sum(1 for r in df_final['Rekomendasi'] if r == 'REVISI')
+                soal_drop = sum(1 for r in df_final['Rekomendasi'] if r == 'DROP')
+                labels = [f'Digunakan ({soal_digunakan})', f'Revisi ({soal_revisi})', f'Drop ({soal_drop})']
+                colors = ['green', 'orange', 'red']
+                if soal_digunakan + soal_revisi + soal_drop > 0:
+                    ax8.pie([soal_digunakan, soal_revisi, soal_drop], labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+                    ax8.set_title('Ringkasan Rekomendasi Soal')
+                st.pyplot(fig8)
+                plt.close()
+            
+            # Heatmap Korelasi
+            if n_soal > 1:
+                st.markdown("---")
+                st.markdown("## 🔥 Heatmap Korelasi Antar Butir")
+                fig9, ax9 = plt.subplots(figsize=(max(8, n_soal*0.5), max(6, n_soal*0.4)))
+                korelasi = df_skor.corr()
+                mask = np.triu(np.ones_like(korelasi, dtype=bool))
+                sns.heatmap(korelasi, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r', center=0, square=True, linewidths=0.5, ax=ax9)
+                ax9.set_title('Korelasi Antar Butir (Nilai >0.30 Indikasi Redundansi)')
+                st.pyplot(fig9)
+                plt.close()
+            
+            # Analisis Pengecoh
+            if hasil_pengecoh:
+                st.markdown("---")
+                st.markdown("## 🎯 ANALISIS PENGECOH")
+                df_pengecoh = pd.DataFrame(hasil_pengecoh, columns=['Soal', 'Kunci', 'Opsi', 'Jumlah', 'Persen', 'Atas', 'Bawah', 'Status'])
+                st.dataframe(df_pengecoh, use_container_width=True)
+            
             # Export
             st.markdown("---")
             st.markdown("## 📥 DOWNLOAD HASIL")
@@ -387,8 +541,8 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     {'Komponen': 'p (Tingkat Kesukaran)', 'Rumus': 'p = Σ benar / N', 'Makna': 'Proporsi jawaban benar'},
                     {'Komponen': 'q', 'Rumus': 'q = 1 - p', 'Makna': 'Proporsi jawaban salah'},
                     {'Komponen': 'pq', 'Rumus': 'pq = p × q', 'Makna': 'Varians butir'},
-                    {'Komponen': 'p_high', 'Rumus': 'p_high = Σ benar kelompok atas / n_kelompok', 'Makna': 'Proporsi benar kelompok atas (27%)'},
-                    {'Komponen': 'p_low', 'Rumus': 'p_low = Σ benar kelompok bawah / n_kelompok', 'Makna': 'Proporsi benar kelompok bawah (27%)'},
+                    {'Komponen': 'p_high', 'Rumus': 'p_high = Σ benar kelompok atas / n_kelompok', 'Makna': 'Proporsi benar kelompok atas'},
+                    {'Komponen': 'p_low', 'Rumus': 'p_low = Σ benar kelompok bawah / n_kelompok', 'Makna': 'Proporsi benar kelompok bawah'},
                     {'Komponen': 'D (Daya Beda)', 'Rumus': 'D = p_high - p_low', 'Makna': 'Kemampuan butir membedakan siswa'},
                     {'Komponen': 'SE (Standard Error)', 'Rumus': 'SE = √(pq/n)', 'Makna': 'Kesalahan standar estimasi butir'},
                     {'Komponen': 'r_it (Validitas)', 'Rumus': 'Korelasi point-biserial corrected', 'Makna': 'Konsistensi butir dengan skor total'},
@@ -396,6 +550,18 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     {'Komponen': 'KR-20', 'Rumus': '(k/(k-1)) × (1 - Σpq/σ²)', 'Makna': 'Reliabilitas tes (konsistensi internal)'},
                     {'Komponen': 'SEM', 'Rumus': 'SEM = SD × √(1 - KR-20)', 'Makna': 'Standard Error of Measurement'},
                 ]).to_excel(writer, sheet_name='Rumus', index=False)
+                
+                # Sheet parameter ambang batas
+                pd.DataFrame([
+                    {'Aspek': 'Tingkat Kesukaran (p)', 'Kategori': 'Sukar', 'Rentang': f'< {batas_sukar}', 'Tindakan': 'Perbaiki redaksi, sederhanakan bahasa'},
+                    {'Aspek': 'Tingkat Kesukaran (p)', 'Kategori': 'Sedang', 'Rentang': f'{batas_sukar} - {batas_mudah}', 'Tindakan': 'Pertahankan'},
+                    {'Aspek': 'Tingkat Kesukaran (p)', 'Kategori': 'Mudah', 'Rentang': f'> {batas_mudah}', 'Tindakan': 'Tingkatkan kesukaran'},
+                    {'Aspek': 'Daya Beda (D)', 'Kategori': 'Jelek', 'Rentang': f'< {batas_cukup}', 'Tindakan': 'Drop atau revisi total'},
+                    {'Aspek': 'Daya Beda (D)', 'Kategori': 'Cukup', 'Rentang': f'{batas_cukup} - {batas_baik}', 'Tindakan': 'Perbaikan minor'},
+                    {'Aspek': 'Daya Beda (D)', 'Kategori': 'Sangat Baik', 'Rentang': f'≥ {batas_baik}', 'Tindakan': 'Pertahankan'},
+                    {'Aspek': 'Validitas (r_it)', 'Kategori': 'Tidak Valid', 'Rentang': f'< {batas_valid}', 'Tindakan': 'Perbaiki atau drop'},
+                    {'Aspek': 'Validitas (r_it)', 'Kategori': 'Valid', 'Rentang': f'≥ {batas_valid}', 'Tindakan': 'Pertahankan'},
+                ]).to_excel(writer, sheet_name='Parameter_Ambang_Batas', index=False)
             
             output.seek(0)
             st.download_button(
