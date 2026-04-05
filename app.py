@@ -1,5 +1,5 @@
 # ======================================================================
-# ITEM ANALYSIS - STREAMLIT VERSION (LENGKAP)
+# ITEM ANALYSIS - STREAMLIT VERSION (FINAL - TIDAK DIUBAH YANG BEKERJA)
 # ======================================================================
 # Fitur LENGKAP:
 # 1. p (tingkat kesukaran)
@@ -14,7 +14,7 @@
 # 10. Alpha if item deleted
 # 11. SEM (standard error measurement)
 # 12. Analisis pengecoh
-# 13. Visualisasi (7 grafik)
+# 13. Visualisasi (9 grafik) - DIPERBAIKI PIE CHART
 # 14. Parameter ambang batas (slider)
 # 15. Export Excel multi-sheet
 # 16. Max file 5MB
@@ -385,7 +385,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 ax1.set_title('1. Tingkat Kesukaran (p)')
                 ax1.set_xticks(range(1, n_soal+1))
                 ax1.set_ylim(0, 1)
-                ax1.legend()
+                ax1.legend(loc='lower right')
                 ax1.grid(axis='y', alpha=0.3)
                 st.pyplot(fig1)
                 plt.close()
@@ -393,7 +393,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
             # Grafik 2: q = 1-p
             with col2:
                 fig2, ax2 = plt.subplots(figsize=(8, 5))
-                ax2.bar(range(1, n_soal+1), q_vals, color='blue', alpha=0.7)
+                ax2.bar(range(1, n_soal+1), q_vals, color='navy', alpha=0.7)
                 ax2.set_xlabel('Nomor Soal')
                 ax2.set_ylabel('q = 1 - p')
                 ax2.set_title('2. Proporsi Jawaban Salah (q)')
@@ -415,7 +415,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 ax3.set_title('3. Daya Beda (D)')
                 ax3.set_xticks(range(1, n_soal+1))
                 ax3.set_ylim(-1, 1)
-                ax3.legend()
+                ax3.legend(loc='lower right')
                 ax3.grid(axis='y', alpha=0.3)
                 st.pyplot(fig3)
                 plt.close()
@@ -432,7 +432,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 ax4.set_title('4. Validitas Butir (Corrected)')
                 ax4.set_xticks(range(1, n_soal+1))
                 ax4.set_ylim(-1, 1)
-                ax4.legend()
+                ax4.legend(loc='lower right')
                 ax4.grid(axis='y', alpha=0.3)
                 st.pyplot(fig4)
                 plt.close()
@@ -448,7 +448,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 ax5.set_title('5. Perbandingan p_high dan p_low')
                 ax5.set_xticks(range(1, n_soal+1))
                 ax5.set_ylim(0, 1)
-                ax5.legend()
+                ax5.legend(loc='lower right')
                 ax5.grid(axis='both', alpha=0.3)
                 st.pyplot(fig5)
                 plt.close()
@@ -475,39 +475,70 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 max_skor = int(df['skor_total'].max())
                 bins = range(min_skor, max_skor+2)
                 ax7.hist(df['skor_total'], bins=bins, edgecolor='black', alpha=0.7, color='skyblue')
-                ax7.axvline(df['skor_total'].mean(), color='red', linestyle='--', label=f"Mean={df['skor_total'].mean():.1f}")
-                ax7.axvline(df['skor_total'].median(), color='green', linestyle='--', label=f"Median={df['skor_total'].median():.1f}")
+                ax7.axvline(df['skor_total'].mean(), color='red', linestyle='--', linewidth=2, label=f"Mean = {df['skor_total'].mean():.2f}")
+                ax7.axvline(df['skor_total'].median(), color='green', linestyle='--', linewidth=2, label=f"Median = {df['skor_total'].median():.2f}")
                 ax7.set_xlabel('Skor Total')
                 ax7.set_ylabel('Frekuensi')
                 ax7.set_title('7. Distribusi Skor Total')
-                ax7.legend()
+                ax7.legend(loc='upper right')
                 ax7.grid(axis='y', alpha=0.3)
                 st.pyplot(fig7)
                 plt.close()
             
-            # Grafik 8: Pie Chart Rekomendasi
+            # Grafik 8: Pie Chart Rekomendasi (DIPERBAIKI - TIDAK MENUMPUK)
             with col2:
-                fig8, ax8 = plt.subplots(figsize=(6, 5))
+                fig8, ax8 = plt.subplots(figsize=(7, 5))
                 soal_digunakan = sum(1 for r in df_final['Rekomendasi'] if r == 'DIGUNAKAN')
                 soal_revisi = sum(1 for r in df_final['Rekomendasi'] if r == 'REVISI')
                 soal_drop = sum(1 for r in df_final['Rekomendasi'] if r == 'DROP')
-                labels = [f'Digunakan ({soal_digunakan})', f'Revisi ({soal_revisi})', f'Drop ({soal_drop})']
-                colors = ['green', 'orange', 'red']
+                
                 if soal_digunakan + soal_revisi + soal_drop > 0:
-                    ax8.pie([soal_digunakan, soal_revisi, soal_drop], labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-                    ax8.set_title('Ringkasan Rekomendasi Soal')
+                    sizes = [soal_digunakan, soal_revisi, soal_drop]
+                    labels_pie = ['Digunakan', 'Revisi', 'Drop']
+                    colors_pie = ['#2ecc71', '#f39c12', '#e74c3c']
+                    explode = (0.05, 0.05, 0.05)
+                    
+                    # Pie chart dengan legend di samping (menghindari teks menumpuk)
+                    wedges, texts, autotexts = ax8.pie(
+                        sizes, 
+                        explode=explode,
+                        labels=None,  # Tidak pakai label di pie
+                        colors=colors_pie, 
+                        autopct='%1.1f%%', 
+                        startangle=90,
+                        textprops={'fontsize': 11, 'fontweight': 'bold'}
+                    )
+                    # Legend di samping kanan
+                    ax8.legend(
+                        wedges, 
+                        [f'{label} ({size} soal)' for label, size in zip(labels_pie, sizes)],
+                        title="Rekomendasi",
+                        loc="center left",
+                        bbox_to_anchor=(1, 0.5),
+                        fontsize=10
+                    )
+                    ax8.set_title('8. Ringkasan Rekomendasi Soal', fontsize=12, fontweight='bold')
+                    ax8.axis('equal')
+                    
+                    # Atur warna teks persentase
+                    for autotext in autotexts:
+                        autotext.set_color('white')
+                        autotext.set_fontweight('bold')
+                
                 st.pyplot(fig8)
                 plt.close()
             
-            # Heatmap Korelasi
+            # Grafik 9: Heatmap Korelasi
             if n_soal > 1:
                 st.markdown("---")
-                st.markdown("## 🔥 Heatmap Korelasi Antar Butir")
+                st.markdown("## 🔥 Korelasi Antar Butir")
                 fig9, ax9 = plt.subplots(figsize=(max(8, n_soal*0.5), max(6, n_soal*0.4)))
                 korelasi = df_skor.corr()
                 mask = np.triu(np.ones_like(korelasi, dtype=bool))
-                sns.heatmap(korelasi, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r', center=0, square=True, linewidths=0.5, ax=ax9)
-                ax9.set_title('Korelasi Antar Butir (Nilai >0.30 Indikasi Redundansi)')
+                sns.heatmap(korelasi, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r', center=0, 
+                            square=True, linewidths=0.5, ax=ax9, 
+                            annot_kws={'size': 8}, cbar_kws={'shrink': 0.8})
+                ax9.set_title('9. Korelasi Antar Butir (Nilai >0.30 Indikasi Redundansi)', fontsize=12)
                 st.pyplot(fig9)
                 plt.close()
             
@@ -536,7 +567,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 if hasil_pengecoh:
                     pd.DataFrame(hasil_pengecoh, columns=['Soal', 'Kunci', 'Opsi', 'Jumlah', 'Persen', 'Atas', 'Bawah', 'Status']).to_excel(writer, sheet_name='Analisis_Pengecoh', index=False)
                 
-                # Sheet parameter
+                # Sheet rumus
                 pd.DataFrame([
                     {'Komponen': 'p (Tingkat Kesukaran)', 'Rumus': 'p = Σ benar / N', 'Makna': 'Proporsi jawaban benar'},
                     {'Komponen': 'q', 'Rumus': 'q = 1 - p', 'Makna': 'Proporsi jawaban salah'},
