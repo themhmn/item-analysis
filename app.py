@@ -1,5 +1,5 @@
 # ======================================================================
-# ITEM ANALYSIS - STREAMLIT VERSION (FINAL - TIDAK DIUBAH YANG BEKERJA)
+# ITEM ANALYSIS - STREAMLIT VERSION (DENGAN DDI)
 # ======================================================================
 # Fitur LENGKAP:
 # 1. p (tingkat kesukaran)
@@ -13,8 +13,8 @@
 # 9. KR-20 (reliabilitas)
 # 10. Alpha if item deleted
 # 11. SEM (standard error measurement)
-# 12. Analisis pengecoh
-# 13. Visualisasi (9 grafik) - DIPERBAIKI PIE CHART
+# 12. Analisis pengecoh dengan DDI (Distractor Discrimination Index)
+# 13. Visualisasi (9 grafik)
 # 14. Parameter ambang batas (slider)
 # 15. Export Excel multi-sheet
 # 16. Max file 5MB
@@ -85,6 +85,15 @@ def interpretasi_d(d, batas_cukup, batas_baik):
         return "Cukup", "Soal cukup mampu membedakan siswa."
     else:
         return "Sangat Baik", "Soal sangat baik dalam membedakan siswa."
+
+def interpretasi_ddi(ddi):
+    """Interpretasi Distractor Discrimination Index"""
+    if ddi > 0:
+        return "Berfungsi", "Pengecoh lebih banyak dipilih kelompok bawah (efektif)"
+    elif ddi == 0:
+        return "Netral", "Pengecoh dipilih sama oleh kedua kelompok"
+    else:
+        return "Tidak Berfungsi", "Pengecoh lebih banyak dipilih kelompok atas (tidak efektif)"
 
 # ======================================================================
 # INITIALIZE SESSION STATE
@@ -211,7 +220,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
         kel_bawah = df_sorted.tail(n_kelompok)
         
         # ======================================================================
-        # PERHITUNGAN LENGKAP
+        # PERHITUNGAN STATISTIK ITEM
         # ======================================================================
         stats_hasil = []
         p_vals, q_vals, pq_vals, p_high_vals, p_low_vals, d_vals, se_vals, r_vals, alpha_if_deleted = [], [], [], [], [], [], [], [], []
@@ -310,7 +319,9 @@ if st.session_state.file_loaded and st.session_state.df is not None:
         
         sem = df['skor_total'].std(ddof=1) * np.sqrt(max(0, 1 - kr20))
         
-        # Analisis Pengecoh
+        # ======================================================================
+        # ANALISIS PENGECOH DENGAN DDI (Distractor Discrimination Index)
+        # ======================================================================
         hasil_pengecoh = []
         if mode == "pilihan_ganda" and kunci:
             semua_opsi = set()
@@ -326,15 +337,37 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 if kunci_soal is None:
                     continue
                 data_soal = df[soal].astype(str).str.strip().str.upper()
+                
                 for opsi in opsi_list:
                     if opsi == kunci_soal:
                         continue
+                    
                     total = (data_soal == opsi).sum()
                     persen = (total / n_siswa) * 100
+                    
                     pemilih_atas = (kel_atas[soal].astype(str).str.strip().str.upper() == opsi).sum()
                     pemilih_bawah = (kel_bawah[soal].astype(str).str.strip().str.upper() == opsi).sum()
-                    status = "BERFUNGSI" if (persen >= 5 and pemilih_bawah > pemilih_atas) else "TIDAK BERFUNGSI"
-                    hasil_pengecoh.append([soal, kunci_soal, opsi, total, round(persen, 1), pemilih_atas, pemilih_bawah, status])
+                    
+                    prop_atas = pemilih_atas / n_kelompok if n_kelompok > 0 else 0
+                    prop_bawah = pemilih_bawah / n_kelompok if n_kelompok > 0 else 0
+                    
+                    # DDI = proporsi kelompok bawah - proporsi kelompok atas
+                    ddi = prop_bawah - prop_atas
+                    
+                    # Interpretasi DDI
+                    kat_ddi, makna_ddi = interpretasi_ddi(ddi)
+                    
+                    # Status lama (untuk kompatibilitas)
+                    status_lama = "BERFUNGSI" if (persen >= 5 and pemilih_bawah > pemilih_atas) else "TIDAK BERFUNGSI"
+                    
+                    hasil_pengecoh.append([
+                        soal, kunci_soal, opsi, 
+                        total, round(persen, 1), 
+                        pemilih_atas, pemilih_bawah, 
+                        round(prop_atas, 4), round(prop_bawah, 4),
+                        round(ddi, 4), kat_ddi, makna_ddi,
+                        status_lama
+                    ])
         
         # DataFrame hasil LENGKAP
         df_final = pd.DataFrame(stats_hasil, columns=[
@@ -348,26 +381,41 @@ if st.session_state.file_loaded and st.session_state.df is not None:
         with tab2:
             st.markdown("## 📋 REKAP ITEM ANALYSIS (LENGKAP)")
             
-            col1, col2 = st.columns(2)
+            # METRIK UTAMA
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Jumlah Siswa", n_siswa)
-                st.metric("Jumlah Soal", n_soal)
-                st.metric("Mode", mode.upper())
             with col2:
+                st.metric("Jumlah Soal", n_soal)
+            with col3:
+                st.metric("Mode", mode.upper())
+            with col4:
                 st.metric("KR-20", f"{kr20:.4f}")
+            
+            # RELIABILITAS & SEM
+            col1, col2 = st.columns(2)
+            with col1:
                 if kr20 >= 0.80:
-                    st.caption("✅ Sangat Baik (Tes sangat konsisten)")
+                    st.success(f"✅ Reliabilitas: {kr20:.4f} (Sangat Baik)")
                 elif kr20 >= 0.70:
-                    st.caption("✅ Baik (Tes dapat digunakan untuk ujian kelas)")
+                    st.info(f"📘 Reliabilitas: {kr20:.4f} (Baik)")
                 elif kr20 >= 0.60:
-                    st.caption("⚠️ Cukup (Masih bisa digunakan untuk penelitian sederhana)")
+                    st.warning(f"⚠️ Reliabilitas: {kr20:.4f} (Cukup)")
                 else:
-                    st.caption("❌ Kurang (Tes tidak konsisten, perlu perbaikan)")
-                st.metric("SEM", f"{sem:.4f}")
+                    st.error(f"❌ Reliabilitas: {kr20:.4f} (Kurang)")
+            
+            with col2:
+                st.info(f"📏 SEM: {sem:.4f} (CI 95%: ±{sem*1.96:.2f})")
                 st.caption(f"Σpq = {sum_pq:.4f} | Varians Total = {var_total:.4f}")
             
+            # TABEL REKAP UTAMA
+            st.markdown("---")
+            st.markdown("### 📊 Tabel Rekap Item Analysis")
             st.dataframe(df_final, use_container_width=True)
             
+            # ======================================================================
+            # VISUALISASI
+            # ======================================================================
             st.markdown("---")
             st.markdown("## 📊 VISUALISASI")
             
@@ -485,7 +533,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.pyplot(fig7)
                 plt.close()
             
-            # Grafik 8: Pie Chart Rekomendasi (DIPERBAIKI - TIDAK MENUMPUK)
+            # Grafik 8: Pie Chart Rekomendasi
             with col2:
                 fig8, ax8 = plt.subplots(figsize=(7, 5))
                 soal_digunakan = sum(1 for r in df_final['Rekomendasi'] if r == 'DIGUNAKAN')
@@ -498,17 +546,15 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     colors_pie = ['#2ecc71', '#f39c12', '#e74c3c']
                     explode = (0.05, 0.05, 0.05)
                     
-                    # Pie chart dengan legend di samping (menghindari teks menumpuk)
                     wedges, texts, autotexts = ax8.pie(
                         sizes, 
                         explode=explode,
-                        labels=None,  # Tidak pakai label di pie
+                        labels=None,
                         colors=colors_pie, 
                         autopct='%1.1f%%', 
                         startangle=90,
                         textprops={'fontsize': 11, 'fontweight': 'bold'}
                     )
-                    # Legend di samping kanan
                     ax8.legend(
                         wedges, 
                         [f'{label} ({size} soal)' for label, size in zip(labels_pie, sizes)],
@@ -520,7 +566,6 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     ax8.set_title('8. Ringkasan Rekomendasi Soal', fontsize=12, fontweight='bold')
                     ax8.axis('equal')
                     
-                    # Atur warna teks persentase
                     for autotext in autotexts:
                         autotext.set_color('white')
                         autotext.set_fontweight('bold')
@@ -542,14 +587,42 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.pyplot(fig9)
                 plt.close()
             
-            # Analisis Pengecoh
+            # ======================================================================
+            # ANALISIS PENGECOH DENGAN DDI
+            # ======================================================================
             if hasil_pengecoh:
                 st.markdown("---")
-                st.markdown("## 🎯 ANALISIS PENGECOH")
-                df_pengecoh = pd.DataFrame(hasil_pengecoh, columns=['Soal', 'Kunci', 'Opsi', 'Jumlah', 'Persen', 'Atas', 'Bawah', 'Status'])
-                st.dataframe(df_pengecoh, use_container_width=True)
+                st.markdown("## 🎯 ANALISIS PENGECOH (Dengan DDI)")
+                st.caption("**DDI (Distractor Discrimination Index)** = Proporsi Bawah - Proporsi Atas | DDI > 0 = Berfungsi")
+                
+                df_pengecoh = pd.DataFrame(hasil_pengecoh, columns=[
+                    'Soal', 'Kunci', 'Opsi', 
+                    'Jumlah', 'Persen', 
+                    'Pilih_Atas', 'Pilih_Bawah',
+                    'Prop_Atas', 'Prop_Bawah',
+                    'DDI', 'Status_DDI', 'Makna_DDI',
+                    'Status'
+                ])
+                
+                # Tampilkan dengan format yang rapi
+                st.dataframe(df_pengecoh[['Soal', 'Kunci', 'Opsi', 'Jumlah', 'Persen', 'Pilih_Atas', 'Pilih_Bawah', 'DDI', 'Status_DDI']], 
+                           use_container_width=True)
+                
+                # Ringkasan DDI per soal
+                st.markdown("### 📊 Ringkasan DDI per Soal")
+                ringkasan_ddi = []
+                for soal in kolom_soal:
+                    ddi_soal = df_pengecoh[df_pengecoh['Soal'] == soal]['DDI'].values
+                    if len(ddi_soal) > 0:
+                        rata_ddi = np.mean(ddi_soal)
+                        ringkasan_ddi.append([soal, len(ddi_soal), round(rata_ddi, 4)])
+                
+                df_ringkasan = pd.DataFrame(ringkasan_ddi, columns=['Soal', 'Jml_Pengecoh', 'Rata_rata_DDI'])
+                st.dataframe(df_ringkasan, use_container_width=True)
             
-            # Export
+            # ======================================================================
+            # EXPORT
+            # ======================================================================
             st.markdown("---")
             st.markdown("## 📥 DOWNLOAD HASIL")
             
@@ -564,8 +637,9 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     'Jumlah_Siswa': [n_siswa],
                     'Jumlah_Soal': [n_soal]
                 }).to_excel(writer, sheet_name='Reliabilitas', index=False)
+                
                 if hasil_pengecoh:
-                    pd.DataFrame(hasil_pengecoh, columns=['Soal', 'Kunci', 'Opsi', 'Jumlah', 'Persen', 'Atas', 'Bawah', 'Status']).to_excel(writer, sheet_name='Analisis_Pengecoh', index=False)
+                    df_pengecoh.to_excel(writer, sheet_name='Analisis_Pengecoh_DDI', index=False)
                 
                 # Sheet rumus
                 pd.DataFrame([
@@ -580,6 +654,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     {'Komponen': 'Alpha_if_deleted', 'Rumus': 'KR-20 tanpa butir i', 'Makna': 'Reliabilitas jika soal dihapus'},
                     {'Komponen': 'KR-20', 'Rumus': '(k/(k-1)) × (1 - Σpq/σ²)', 'Makna': 'Reliabilitas tes (konsistensi internal)'},
                     {'Komponen': 'SEM', 'Rumus': 'SEM = SD × √(1 - KR-20)', 'Makna': 'Standard Error of Measurement'},
+                    {'Komponen': 'DDI', 'Rumus': 'DDI = Prop_Bawah - Prop_Atas', 'Makna': 'Distractor Discrimination Index'},
                 ]).to_excel(writer, sheet_name='Rumus', index=False)
                 
                 # Sheet parameter ambang batas
@@ -592,11 +667,14 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     {'Aspek': 'Daya Beda (D)', 'Kategori': 'Sangat Baik', 'Rentang': f'≥ {batas_baik}', 'Tindakan': 'Pertahankan'},
                     {'Aspek': 'Validitas (r_it)', 'Kategori': 'Tidak Valid', 'Rentang': f'< {batas_valid}', 'Tindakan': 'Perbaiki atau drop'},
                     {'Aspek': 'Validitas (r_it)', 'Kategori': 'Valid', 'Rentang': f'≥ {batas_valid}', 'Tindakan': 'Pertahankan'},
+                    {'Aspek': 'DDI', 'Kategori': 'Berfungsi', 'Rentang': '> 0', 'Tindakan': 'Pertahankan pengecoh'},
+                    {'Aspek': 'DDI', 'Kategori': 'Netral', 'Rentang': '= 0', 'Tindakan': 'Evaluasi, pertimbangkan revisi'},
+                    {'Aspek': 'DDI', 'Kategori': 'Tidak Berfungsi', 'Rentang': '< 0', 'Tindakan': 'Ganti pengecoh'},
                 ]).to_excel(writer, sheet_name='Parameter_Ambang_Batas', index=False)
             
             output.seek(0)
             st.download_button(
-                label="📥 Download Excel (LENGKAP)",
+                label="📥 Download Excel (LENGKAP + DDI)",
                 data=output,
                 file_name="hasil_item_analysis_lengkap.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
