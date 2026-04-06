@@ -364,7 +364,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     ddi_interpretation, _ = interpret_ddi(ddi)
                     
                     # ==========================================================
-                    # TAMBAHAN: EXPLICIT CRITERIA FLAGS (≥5%? dan Low > High?)
+                    # EXPLICIT CRITERIA FLAGS
                     # ==========================================================
                     meets_percent = percent >= 5.0
                     meets_lower_upper = lower_select > upper_select
@@ -375,8 +375,8 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                         upper_select, lower_select, 
                         round(prop_upper, 4), round(prop_lower, 4),
                         round(ddi, 4), ddi_interpretation,
-                        "✅ Yes" if meets_percent else "❌ No",
-                        "✅ Yes" if meets_lower_upper else "❌ No"
+                        "Yes" if meets_percent else "No",
+                        "Yes" if meets_lower_upper else "No"
                     ])
         
         # Final results dataframe
@@ -438,16 +438,15 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.markdown("---")
                 st.markdown("## 🎯 DISTRACTOR ANALYSIS WITH DDI")
                 st.caption("**DDI (Distractor Discrimination Index)** = Proportion Lower - Proportion Upper | DDI > 0 indicates a functional distractor")
-                st.caption("Functional distractors: (1) Selected by ≥5% of students, (2) More low-ability than high-ability students choose them")
+                st.caption("Functional distractors: (1) Selected by >=5% of students, (2) More low-ability than high-ability students choose them")
                 
-                # TAMBAHAN: columns sekarang termasuk '≥5%?' dan 'Low > High?'
                 df_distractor = pd.DataFrame(distractor_results, columns=[
                     'Item', 'Key', 'Option', 
                     'N_Select', 'Percent', 
                     'Upper_N', 'Lower_N',
                     'Prop_Upper', 'Prop_Lower',
                     'DDI', 'DDI_Interpretation',
-                    'Min_5_Pct', 'LowerGreaterThanUpper'
+                    '>=5%', 'Lower > Upper'
                 ])
                 
                 st.dataframe(df_distractor, use_container_width=True)
