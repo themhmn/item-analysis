@@ -1,7 +1,24 @@
 # ======================================================================
-# ITEM ANALYSIS - STREAMLIT VERSION (COMPLETE + BUG FIXED)
+# ITEM ANALYSIS - STREAMLIT VERSION (COMPLETE + DATA SUMMARY)
 # ======================================================================
-# BUG FIX: Upper_N = 0 issue - Fixed group formation
+# COMPLETE FEATURES:
+# 1. p (difficulty index)
+# 2. q (1-p)
+# 3. pq (item variance)
+# 4. p_upper (upper group proportion correct)
+# 5. p_lower (lower group proportion correct)
+# 6. D (discrimination index)
+# 7. SE (standard error of item)
+# 8. r_it (corrected item-total correlation)
+# 9. KR-20 (reliability)
+# 10. Alpha if item deleted
+# 11. SEM (standard error of measurement)
+# 12. DDI (Distractor Discrimination Index)
+# 13. EXPLICIT CRITERIA FLAGS: '>=5%' and 'Lower > Upper'
+# 14. ALL 11 VISUALIZATIONS (complete)
+# 15. Multi-sheet Excel export (complete)
+# 16. Max file size 5MB
+# 17. DATA SUMMARY table for verification
 # ======================================================================
 
 import streamlit as st
@@ -51,6 +68,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.caption("Scripted by Muhaimin Abdullah")
+    st.caption("Based on Classical Test Theory (CTT)")
 
 # ======================================================================
 # FUNCTIONS
@@ -182,23 +200,11 @@ if st.session_state.file_loaded and st.session_state.df is not None:
             
             df['total_score'] = df_scores.sum(axis=1)
             
-            # ==================================================================
-            # CRITICAL BUG FIX: Correct upper and lower group formation
-            # ==================================================================
-            # Sort by total_score
-            df_sorted = df.sort_values('total_score', ascending=False).reset_index(drop=True)
-            
-            # Calculate number of students in each group (27% by default)
+            # Upper and lower groups (Kelley's 27% method)
             n_group = max(1, int(np.ceil(n_students * group_percent / 100)))
-            
-            # Create upper and lower groups using iloc on sorted dataframe
+            df_sorted = df.sort_values('total_score', ascending=False).reset_index(drop=True)
             upper_group = df_sorted.iloc[:n_group].copy()
             lower_group = df_sorted.iloc[-n_group:].copy()
-            
-            # Debug: Show group total scores to verify groups are formed correctly
-            st.caption(f"**Debug:** Upper group total scores: {upper_group['total_score'].tolist()[:5]}...")
-            st.caption(f"**Debug:** Lower group total scores: {lower_group['total_score'].tolist()[:5]}...")
-            st.caption(f"**Debug:** Group size: {n_group} students (top {group_percent}%)")
             
             # ==================================================================
             # ITEM STATISTICS
@@ -226,7 +232,6 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 
                 key_value = answer_key[i]
                 
-                # Calculate proportion correct using the CORRECTLY formed groups
                 upper_correct = (upper_group[item].astype(str).str.strip().str.upper() == key_value).sum()
                 p_upper = upper_correct / n_group
                 
@@ -323,7 +328,6 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     total_select = (item_data == option).sum()
                     percent = (total_select / n_students) * 100 if n_students > 0 else 0
                     
-                    # Use the CORRECTLY formed groups
                     upper_select = (upper_group[item].astype(str).str.strip().str.upper() == option).sum()
                     lower_select = (lower_group[item].astype(str).str.strip().str.upper() == option).sum()
                     
@@ -352,108 +356,411 @@ if st.session_state.file_loaded and st.session_state.df is not None:
             ])
             
             # ==================================================================
-            # DISPLAY RESULTS
+            # DISPLAY RESULTS IN TAB2
             # ==================================================================
             with tab2:
+                # ==============================================================
+                # SECTION 0: DATA SUMMARY (Informasi Dasar untuk Pengecekan)
+                # ==============================================================
+                st.markdown("## 📋 DATA SUMMARY")
+                
+                mean_score = df['total_score'].mean()
+                median_score = df['total_score'].median()
+                min_score = df['total_score'].min()
+                max_score = df['total_score'].max()
+                std_score = df['total_score'].std(ddof=1)
+                
+                upper_group_scores = df_sorted['total_score'].iloc[:n_group].tolist()
+                lower_group_scores = df_sorted['total_score'].iloc[-n_group:].tolist()
+                
+                summary_data = {
+                    'Parameter': [
+                        'Number of Students (N)', 
+                        'Number of Items (k)', 
+                        'Group Percentage', 
+                        'Group Size (n_group)',
+                        'Mean Total Score (M)', 
+                        'Median Total Score', 
+                        'Standard Deviation (SD)',
+                        'Minimum Score', 
+                        'Maximum Score',
+                        'Upper Group Score Range',
+                        'Lower Group Score Range'
+                    ],
+                    'Value': [
+                        n_students, 
+                        n_items, 
+                        f"{group_percent}% (Kelley, 1939)", 
+                        n_group,
+                        f"{mean_score:.2f}", 
+                        f"{median_score:.2f}", 
+                        f"{std_score:.2f}",
+                        min_score, 
+                        max_score,
+                        f"{min(upper_group_scores)} - {max(upper_group_scores)}",
+                        f"{min(lower_group_scores)} - {max(lower_group_scores)}"
+                    ]
+                }
+                
+                df_summary = pd.DataFrame(summary_data)
+                st.dataframe(df_summary, use_container_width=True)
+                
+                if all(s == max_score for s in upper_group_scores):
+                    st.info("ℹ️ **Note:** Upper group achieved perfect scores on all items. This explains why Upper_N = 0 in distractor analysis (no high-ability students selected distractors).")
+                
+                # ==============================================================
+                # SECTION 1: ITEM ANALYSIS SUMMARY
+                # ==============================================================
                 st.markdown("## 📋 ITEM ANALYSIS SUMMARY")
+                st.markdown("Below are the key statistics for your test and items.")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Students", n_students)
+                    st.metric("Number of Students", n_students)
                 with col2:
-                    st.metric("Items", n_items)
+                    st.metric("Number of Items", n_items)
                 with col3:
-                    st.metric("Mode", "MULTIPLE_CHOICE")
+                    st.metric("Response Mode", "MULTIPLE_CHOICE")
                 with col4:
                     st.metric("KR-20", f"{kr20:.4f}")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     if kr20 >= 0.80:
-                        st.success(f"✅ Reliability: {kr20:.4f} (Very Good)")
+                        st.success(f"✅ **Reliability:** {kr20:.4f} (Very Good - suitable for high-stakes testing)")
                     elif kr20 >= 0.70:
-                        st.info(f"📘 Reliability: {kr20:.4f} (Good)")
+                        st.info(f"📘 **Reliability:** {kr20:.4f} (Good - suitable for classroom exams)")
                     elif kr20 >= 0.60:
-                        st.warning(f"⚠️ Reliability: {kr20:.4f} (Fair)")
+                        st.warning(f"⚠️ **Reliability:** {kr20:.4f} (Fair - acceptable for exploratory research)")
                     else:
-                        st.error(f"❌ Reliability: {kr20:.4f} (Poor)")
+                        st.error(f"❌ **Reliability:** {kr20:.4f} (Poor - needs significant improvement)")
+                
                 with col2:
-                    st.info(f"📏 SEM: {sem:.4f} | 95% CI: ±{sem*1.96:.2f}")
+                    st.info(f"📏 **Standard Error of Measurement (SEM):** {sem:.4f}")
+                    st.caption(f"95% Confidence Interval: ±{sem*1.96:.2f} points")
                     st.caption(f"Σpq = {sum_pq:.4f} | Total Variance = {total_variance:.4f}")
                 
+                # ==============================================================
+                # SECTION 2: COMPLETE ITEM STATISTICS TABLE
+                # ==============================================================
                 st.markdown("---")
-                st.markdown("## 📊 ITEM STATISTICS")
+                st.markdown("## 📊 COMPLETE ITEM STATISTICS")
+                st.caption("This table shows all psychometric properties for each test item.")
+                
                 st.dataframe(df_results, use_container_width=True)
                 
+                # ==============================================================
+                # SECTION 3: DISTRACTOR ANALYSIS WITH DDI + EXTRA COLUMNS
+                # ==============================================================
                 if distractor_results:
                     st.markdown("---")
-                    st.markdown("## 🎯 DISTRACTOR ANALYSIS")
-                    st.caption("**>=5%** = Selected by at least 5% of students | **Lower > Upper** = More low-ability than high-ability students")
+                    st.markdown("## 🎯 DISTRACTOR ANALYSIS WITH DDI")
+                    st.caption("**DDI (Distractor Discrimination Index)** = Proportion Lower - Proportion Upper | DDI > 0 indicates a functional distractor")
+                    st.caption("**Criteria for functional distractor:** (1) Selected by >=5% of students, (2) More low-ability than high-ability students choose them")
                     
                     df_distractor = pd.DataFrame(distractor_results, columns=[
-                        'Item', 'Key', 'Option', 'N_Select', 'Percent',
-                        'Upper_N', 'Lower_N', 'Prop_Upper', 'Prop_Lower',
-                        'DDI', 'DDI_Interpretation', '>=5%', 'Lower > Upper'
+                        'Item', 'Key', 'Option', 
+                        'N_Select', 'Percent', 
+                        'Upper_N', 'Lower_N',
+                        'Prop_Upper', 'Prop_Lower',
+                        'DDI', 'DDI_Interpretation',
+                        '>=5%', 'Lower > Upper'
                     ])
+                    
                     st.dataframe(df_distractor, use_container_width=True)
                     
                     st.markdown("### 📊 DDI Summary by Item")
                     ddi_summary = []
                     for item in item_columns:
-                        item_distractors = [r for r in distractor_results if r[0] == item]
-                        if item_distractors:
-                            ddi_values = [r[9] for r in item_distractors]
-                            mean_ddi = np.mean(ddi_values)
-                            functional_count = sum(1 for d in ddi_values if d > 0)
+                        item_distractors = df_distractor[df_distractor['Item'] == item]['DDI'].values
+                        if len(item_distractors) > 0:
+                            mean_ddi = np.mean(item_distractors)
+                            functional_count = sum(1 for d in item_distractors if d > 0)
                             ddi_summary.append([item, len(item_distractors), round(mean_ddi, 4), functional_count])
-                    if ddi_summary:
-                        df_ddi_summary = pd.DataFrame(ddi_summary, columns=['Item', '# Distractors', 'Mean DDI', '# Functional'])
-                        st.dataframe(df_ddi_summary, use_container_width=True)
+                    
+                    df_ddi_summary = pd.DataFrame(ddi_summary, columns=['Item', 'Num_Distractors', 'Mean_DDI', 'Functional_Count'])
+                    st.dataframe(df_ddi_summary, use_container_width=True)
                 
-                # Visualizations
+                # ==============================================================
+                # SECTION 4: VISUALIZATIONS (ALL 11 CHARTS)
+                # ==============================================================
                 st.markdown("---")
                 st.markdown("## 📊 VISUALIZATIONS")
+                st.caption("The following charts provide visual interpretation of item statistics.")
                 
+                # Row 1: Difficulty and Discrimination
                 col1, col2 = st.columns(2)
+                
                 with col1:
-                    fig1, ax1 = plt.subplots(figsize=(7, 4))
+                    st.markdown("### 1. Item Difficulty (p)")
+                    fig1, ax1 = plt.subplots(figsize=(8, 5))
                     colors_p = ['red' if x < difficult_threshold else ('green' if x <= easy_threshold else 'orange') for x in p_values]
                     ax1.bar(range(1, n_items+1), p_values, color=colors_p)
-                    ax1.axhline(difficult_threshold, color='red', linestyle='--')
-                    ax1.axhline(easy_threshold, color='orange', linestyle='--')
-                    ax1.set_xlabel('Item')
-                    ax1.set_ylabel('p')
-                    ax1.set_title('Item Difficulty')
+                    ax1.axhline(difficult_threshold, color='red', linestyle='--', label=f'Difficult Threshold ({difficult_threshold})')
+                    ax1.axhline(easy_threshold, color='orange', linestyle='--', label=f'Easy Threshold ({easy_threshold})')
+                    ax1.set_xlabel('Item Number')
+                    ax1.set_ylabel('Difficulty Index (p)')
+                    ax1.set_title('Item Difficulty: Red=Difficult, Green=Moderate, Orange=Easy')
                     ax1.set_xticks(range(1, n_items+1))
+                    ax1.set_ylim(0, 1)
+                    ax1.legend(loc='lower right')
+                    ax1.grid(axis='y', alpha=0.3)
                     st.pyplot(fig1)
                     plt.close()
                 
                 with col2:
-                    fig2, ax2 = plt.subplots(figsize=(7, 4))
+                    st.markdown("### 2. Item Discrimination (D)")
+                    fig2, ax2 = plt.subplots(figsize=(8, 5))
                     colors_d = ['green' if x >= good_threshold else ('orange' if x >= poor_threshold else 'red') for x in d_values]
                     ax2.bar(range(1, n_items+1), d_values, color=colors_d)
-                    ax2.axhline(good_threshold, color='green', linestyle='--')
-                    ax2.axhline(poor_threshold, color='orange', linestyle='--')
-                    ax2.set_xlabel('Item')
-                    ax2.set_ylabel('D')
-                    ax2.set_title('Item Discrimination')
+                    ax2.axhline(good_threshold, color='green', linestyle='--', label=f'Very Good (≥{good_threshold})')
+                    ax2.axhline(poor_threshold, color='orange', linestyle='--', label=f'Fair (≥{poor_threshold})')
+                    ax2.set_xlabel('Item Number')
+                    ax2.set_ylabel('Discrimination Index (D)')
+                    ax2.set_title('Item Discrimination: Green=Very Good, Orange=Fair, Red=Poor')
                     ax2.set_xticks(range(1, n_items+1))
+                    ax2.set_ylim(-1, 1)
+                    ax2.legend(loc='lower right')
+                    ax2.grid(axis='y', alpha=0.3)
                     st.pyplot(fig2)
                     plt.close()
                 
-                # Download
+                # Row 2: Validity and Proportion of Incorrect (q)
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 3. Item Validity (r_it)")
+                    fig3, ax3 = plt.subplots(figsize=(8, 5))
+                    colors_r = ['green' if x >= valid_threshold else 'red' for x in r_values]
+                    ax3.bar(range(1, n_items+1), r_values, color=colors_r)
+                    ax3.axhline(valid_threshold, color='green', linestyle='--', label=f'Valid Threshold (≥{valid_threshold})')
+                    ax3.axhline(0, color='black', linestyle='-', linewidth=0.5)
+                    ax3.set_xlabel('Item Number')
+                    ax3.set_ylabel('Corrected Item-Total Correlation (r_it)')
+                    ax3.set_title('Item Validity: Green=Valid, Red=Invalid')
+                    ax3.set_xticks(range(1, n_items+1))
+                    ax3.set_ylim(-1, 1)
+                    ax3.legend(loc='lower right')
+                    ax3.grid(axis='y', alpha=0.3)
+                    st.pyplot(fig3)
+                    plt.close()
+                
+                with col2:
+                    st.markdown("### 4. Proportion Incorrect (q = 1-p)")
+                    fig4, ax4 = plt.subplots(figsize=(8, 5))
+                    ax4.bar(range(1, n_items+1), q_values, color='navy', alpha=0.7)
+                    ax4.set_xlabel('Item Number')
+                    ax4.set_ylabel('q = 1 - p')
+                    ax4.set_title('Proportion of Students Answering Incorrectly')
+                    ax4.set_xticks(range(1, n_items+1))
+                    ax4.set_ylim(0, 1)
+                    ax4.grid(axis='y', alpha=0.3)
+                    st.pyplot(fig4)
+                    plt.close()
+                
+                # Row 3: Upper vs Lower Group Comparison and Recommendations
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 5. Upper vs Lower Group Performance")
+                    fig5, ax5 = plt.subplots(figsize=(8, 5))
+                    x = range(1, n_items+1)
+                    ax5.plot(x, p_upper_values, 'o-', color='green', label='p_upper (Upper 27%)', linewidth=2, markersize=8)
+                    ax5.plot(x, p_lower_values, 's-', color='red', label='p_lower (Lower 27%)', linewidth=2, markersize=8)
+                    ax5.fill_between(x, p_lower_values, p_upper_values, alpha=0.2, color='gray')
+                    ax5.set_xlabel('Item Number')
+                    ax5.set_ylabel('Proportion Correct')
+                    ax5.set_title('Comparison of Upper and Lower Group Performance')
+                    ax5.set_xticks(range(1, n_items+1))
+                    ax5.set_ylim(0, 1)
+                    ax5.legend(loc='lower right')
+                    ax5.grid(axis='both', alpha=0.3)
+                    st.pyplot(fig5)
+                    plt.close()
+                
+                with col2:
+                    st.markdown("### 6. Item Recommendations")
+                    fig6, ax6 = plt.subplots(figsize=(8, 5))
+                    colors_rec = ['green' if r == 'RETAIN' else ('orange' if r == 'REVISE' else 'red') for r in df_results['Recommendation']]
+                    ax6.bar(range(1, n_items+1), [1]*n_items, color=colors_rec)
+                    ax6.set_xlabel('Item Number')
+                    ax6.set_title('Item Recommendations: Green=RETAIN, Orange=REVISE, Red=DROP')
+                    ax6.set_xticks(range(1, n_items+1))
+                    ax6.set_yticks([])
+                    
+                    for bar, rec in zip(ax6.patches, df_results['Recommendation']):
+                        ax6.text(bar.get_x() + bar.get_width()/2, 1.05, rec, ha='center', va='bottom', fontsize=8, rotation=45)
+                    st.pyplot(fig6)
+                    plt.close()
+                
+                # Row 4: Score Distribution and Recommendation Pie Chart
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 7. Total Score Distribution")
+                    fig7, ax7 = plt.subplots(figsize=(8, 5))
+                    min_score_val = int(df['total_score'].min())
+                    max_score_val = int(df['total_score'].max())
+                    bins = range(min_score_val, max_score_val+2)
+                    ax7.hist(df['total_score'], bins=bins, edgecolor='black', alpha=0.7, color='skyblue')
+                    ax7.axvline(df['total_score'].mean(), color='red', linestyle='--', linewidth=2, label=f"Mean = {df['total_score'].mean():.2f}")
+                    ax7.axvline(df['total_score'].median(), color='green', linestyle='--', linewidth=2, label=f"Median = {df['total_score'].median():.2f}")
+                    ax7.set_xlabel('Total Score')
+                    ax7.set_ylabel('Frequency')
+                    ax7.set_title('Distribution of Student Total Scores')
+                    ax7.legend(loc='upper right')
+                    ax7.grid(axis='y', alpha=0.3)
+                    st.pyplot(fig7)
+                    plt.close()
+                
+                with col2:
+                    st.markdown("### 8. Recommendation Summary")
+                    fig8, ax8 = plt.subplots(figsize=(7, 5))
+                    retain_count = sum(1 for r in df_results['Recommendation'] if r == 'RETAIN')
+                    revise_count = sum(1 for r in df_results['Recommendation'] if r == 'REVISE')
+                    drop_count = sum(1 for r in df_results['Recommendation'] if r == 'DROP')
+                    
+                    if retain_count + revise_count + drop_count > 0:
+                        sizes = [retain_count, revise_count, drop_count]
+                        labels = ['RETAIN', 'REVISE', 'DROP']
+                        colors_pie = ['#2ecc71', '#f39c12', '#e74c3c']
+                        explode = (0.05, 0.05, 0.05)
+                        
+                        wedges, texts, autotexts = ax8.pie(
+                            sizes, 
+                            explode=explode,
+                            labels=None,
+                            colors=colors_pie, 
+                            autopct='%1.1f%%', 
+                            startangle=90,
+                            textprops={'fontsize': 11, 'fontweight': 'bold'}
+                        )
+                        ax8.legend(
+                            wedges, 
+                            [f'{label} ({size} items)' for label, size in zip(labels, sizes)],
+                            title="Recommendation",
+                            loc="center left",
+                            bbox_to_anchor=(1, 0.5),
+                            fontsize=10
+                        )
+                        ax8.set_title('Proportion of Item Recommendations', fontsize=12, fontweight='bold')
+                        ax8.axis('equal')
+                        
+                        for autotext in autotexts:
+                            autotext.set_color('white')
+                            autotext.set_fontweight('bold')
+                    
+                    st.pyplot(fig8)
+                    plt.close()
+                
+                # Row 5: Standard Error and Alpha if Deleted
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 9. Standard Error by Item")
+                    fig9, ax9 = plt.subplots(figsize=(8, 5))
+                    ax9.bar(range(1, n_items+1), se_values, color='#9b59b6', alpha=0.7, edgecolor='black')
+                    ax9.set_xlabel('Item Number')
+                    ax9.set_ylabel('Standard Error (SE)')
+                    ax9.set_title('Standard Error of Item Proportion')
+                    ax9.set_xticks(range(1, n_items+1))
+                    ax9.grid(axis='y', alpha=0.3)
+                    
+                    for bar, se_val in zip(ax9.patches, se_values):
+                        ax9.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001, f'{se_val:.4f}', ha='center', va='bottom', fontsize=7)
+                    st.pyplot(fig9)
+                    plt.close()
+                
+                with col2:
+                    st.markdown("### 10. Alpha if Item Deleted")
+                    fig10, ax10 = plt.subplots(figsize=(8, 5))
+                    colors_alpha = ['#2ecc71' if x <= kr20 else '#e74c3c' for x in alpha_if_deleted_values]
+                    ax10.bar(range(1, n_items+1), alpha_if_deleted_values, color=colors_alpha, edgecolor='black')
+                    ax10.axhline(kr20, color='blue', linestyle='--', linewidth=2, label=f'Overall KR-20 = {kr20:.4f}')
+                    ax10.set_xlabel('Item Number')
+                    ax10.set_ylabel('Alpha if Item Deleted')
+                    ax10.set_title('Impact on Reliability if Item Removed')
+                    ax10.set_xticks(range(1, n_items+1))
+                    ax10.legend()
+                    ax10.grid(axis='y', alpha=0.3)
+                    
+                    for bar, alpha_val in zip(ax10.patches, alpha_if_deleted_values):
+                        ax10.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, f'{alpha_val:.3f}', ha='center', va='bottom', fontsize=7)
+                    st.pyplot(fig10)
+                    plt.close()
+                
+                # Row 6: Correlation Heatmap
+                if n_items > 1:
+                    st.markdown("### 11. Inter-Item Correlation Heatmap")
+                    fig11, ax11 = plt.subplots(figsize=(max(8, n_items*0.5), max(6, n_items*0.4)))
+                    correlation_matrix = df_scores.corr()
+                    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+                    sns.heatmap(correlation_matrix, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r', center=0, 
+                                square=True, linewidths=0.5, ax=ax11, 
+                                annot_kws={'size': 8}, cbar_kws={'shrink': 0.8})
+                    ax11.set_title('Inter-Item Correlation Matrix (r > 0.30 indicates potential redundancy)', fontsize=12)
+                    st.pyplot(fig11)
+                    plt.close()
+                
+                # ==============================================================
+                # SECTION 5: DOWNLOAD RESULTS (COMPLETE)
+                # ==============================================================
                 st.markdown("---")
-                st.markdown("## 📥 DOWNLOAD")
+                st.markdown("## 📥 DOWNLOAD RESULTS")
+                
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df_results.to_excel(writer, sheet_name='Item_Statistics', index=False)
+                    pd.DataFrame({
+                        'KR-20': [kr20],
+                        'SEM': [sem],
+                        'Sum_pq': [sum_pq],
+                        'Total_Variance': [total_variance],
+                        'Number_of_Students': [n_students],
+                        'Number_of_Items': [n_items]
+                    }).to_excel(writer, sheet_name='Reliability', index=False)
+                    
                     if distractor_results:
-                        df_distractor.to_excel(writer, sheet_name='Distractor_Analysis', index=False)
-                    pd.DataFrame({'KR-20': [kr20], 'SEM': [sem], 'Students': [n_students], 'Items': [n_items]}).to_excel(writer, sheet_name='Summary', index=False)
-                output.seek(0)
-                st.download_button("📥 Download Excel Report", data=output, file_name="item_analysis_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        df_distractor.to_excel(writer, sheet_name='Distractor_Analysis_DDI', index=False)
+                    
+                    pd.DataFrame([
+                        {'Component': 'p (Difficulty Index)', 'Formula': 'p = Σ correct / N', 'Meaning': 'Proportion of students answering correctly'},
+                        {'Component': 'q', 'Formula': 'q = 1 - p', 'Meaning': 'Proportion of students answering incorrectly'},
+                        {'Component': 'pq', 'Formula': 'pq = p × q', 'Meaning': 'Item variance'},
+                        {'Component': 'p_upper', 'Formula': 'p_upper = Σ correct (upper group) / n_group', 'Meaning': 'Proportion correct in upper group'},
+                        {'Component': 'p_lower', 'Formula': 'p_lower = Σ correct (lower group) / n_group', 'Meaning': 'Proportion correct in lower group'},
+                        {'Component': 'D (Discrimination)', 'Formula': 'D = p_upper - p_lower', 'Meaning': 'Ability to distinguish high vs low ability students'},
+                        {'Component': 'SE', 'Formula': 'SE = √(pq/n)', 'Meaning': 'Standard error of item proportion'},
+                        {'Component': 'r_it (Validity)', 'Formula': 'Point-biserial correlation (corrected)', 'Meaning': 'Consistency of item with total test score'},
+                        {'Component': 'Alpha_if_deleted', 'Formula': 'KR-20 without item i', 'Meaning': 'Reliability if item is removed'},
+                        {'Component': 'KR-20', 'Formula': '(k/(k-1)) × (1 - Σpq/σ²)', 'Meaning': 'Internal consistency reliability'},
+                        {'Component': 'SEM', 'Formula': 'SEM = SD × √(1 - KR-20)', 'Meaning': 'Standard Error of Measurement'},
+                        {'Component': 'DDI', 'Formula': 'DDI = Prop_Lower - Prop_Upper', 'Meaning': 'Distractor Discrimination Index'},
+                    ]).to_excel(writer, sheet_name='Formulas', index=False)
+                    
+                    pd.DataFrame([
+                        {'Aspect': 'Difficulty (p)', 'Category': 'Difficult', 'Range': f'< {difficult_threshold}', 'Action': 'Revise wording, simplify language'},
+                        {'Aspect': 'Difficulty (p)', 'Category': 'Moderate', 'Range': f'{difficult_threshold} - {easy_threshold}', 'Action': 'Retain'},
+                        {'Aspect': 'Difficulty (p)', 'Category': 'Easy', 'Range': f'> {easy_threshold}', 'Action': 'Increase difficulty'},
+                        {'Aspect': 'Discrimination (D)', 'Category': 'Poor', 'Range': f'< {poor_threshold}', 'Action': 'Drop or major revision'},
+                        {'Aspect': 'Discrimination (D)', 'Category': 'Fair', 'Range': f'{poor_threshold} - {good_threshold}', 'Action': 'Minor revision'},
+                        {'Aspect': 'Discrimination (D)', 'Category': 'Very Good', 'Range': f'≥ {good_threshold}', 'Action': 'Retain'},
+                        {'Aspect': 'Validity (r_it)', 'Category': 'Invalid', 'Range': f'< {valid_threshold}', 'Action': 'Revise or drop'},
+                        {'Aspect': 'Validity (r_it)', 'Category': 'Valid', 'Range': f'≥ {valid_threshold}', 'Action': 'Retain'},
+                        {'Aspect': 'DDI', 'Category': 'Functional', 'Range': '> 0', 'Action': 'Retain distractor'},
+                        {'Aspect': 'DDI', 'Category': 'Neutral', 'Range': '= 0', 'Action': 'Evaluate, consider revision'},
+                        {'Aspect': 'DDI', 'Category': 'Non-Functional', 'Range': '< 0', 'Action': 'Replace distractor'},
+                    ]).to_excel(writer, sheet_name='Threshold_Parameters', index=False)
                 
-                st.success("✅ Analysis complete!")
+                output.seek(0)
+                st.download_button(
+                    label="📥 Download Excel Report (Complete)",
+                    data=output,
+                    file_name="item_analysis_report.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+                st.success("✅ Analysis complete! The report includes all item statistics, distractor analysis with DDI, and visualizations.")
 
 else:
     with tab2:
