@@ -364,7 +364,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     ddi_interpretation, _ = interpret_ddi(ddi)
                     
                     # ==========================================================
-                    # EXPLICIT CRITERIA FLAGS
+                    # TAMBAHAN: EXPLICIT CRITERIA FLAGS (YANG ANDA MINTA)
                     # ==========================================================
                     meets_percent = percent >= 5.0
                     meets_lower_upper = lower_select > upper_select
@@ -438,8 +438,9 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.markdown("---")
                 st.markdown("## 🎯 DISTRACTOR ANALYSIS WITH DDI")
                 st.caption("**DDI (Distractor Discrimination Index)** = Proportion Lower - Proportion Upper | DDI > 0 indicates a functional distractor")
-                st.caption("Functional distractors: (1) Selected by >=5% of students, (2) More low-ability than high-ability students choose them")
+                st.caption("**Criteria for functional distractor:** (1) Selected by >=5% of students, (2) More low-ability than high-ability students choose them")
                 
+                # TAMBAHAN: columns sekarang termasuk '>=5%' dan 'Lower > Upper'
                 df_distractor = pd.DataFrame(distractor_results, columns=[
                     'Item', 'Key', 'Option', 
                     'N_Select', 'Percent', 
