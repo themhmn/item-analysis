@@ -1,12 +1,12 @@
 # ======================================================================
-# ITEM ANALYSIS - STREAMLIT VERSION (FULL VERSION WITH DDI)
+# ITEM ANALYSIS - STREAMLIT VERSION (COMPLETE + 2 COLUMNS)
 # ======================================================================
-# COMPLETE FEATURES:
+# COMPLETE FEATURES (ALL RESTORED):
 # 1. p (difficulty index)
 # 2. q (1-p)
 # 3. pq (item variance)
-# 4. p_high (upper group proportion correct)
-# 5. p_low (lower group proportion correct)
+# 4. p_upper (upper group proportion correct)
+# 5. p_lower (lower group proportion correct)
 # 6. D (discrimination index)
 # 7. SE (standard error of item)
 # 8. r_it (corrected item-total correlation)
@@ -14,9 +14,9 @@
 # 10. Alpha if item deleted
 # 11. SEM (standard error of measurement)
 # 12. DDI (Distractor Discrimination Index)
-# 13. Visualizations (9 charts)
-# 14. Adjustable threshold parameters (sliders)
-# 15. Multi-sheet Excel export
+# 13. EXPLICIT CRITERIA FLAGS: '>=5%' and 'Lower > Upper'
+# 14. All 9 visualizations (full restored)
+# 15. Multi-sheet Excel export (complete)
 # 16. Max file size 5MB
 # ======================================================================
 
@@ -226,7 +226,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
         lower_group = df_sorted.tail(n_group)
         
         # ======================================================================
-        # ITEM STATISTICS CALCULATION
+        # ITEM STATISTICS CALCULATION (COMPLETE)
         # ======================================================================
         results = []
         p_values, q_values, pq_values, p_upper_values, p_lower_values = [], [], [], [], []
@@ -327,7 +327,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
         sem = df['total_score'].std(ddof=1) * np.sqrt(max(0, 1 - kr20))
         
         # ======================================================================
-        # DISTRACTOR ANALYSIS WITH DDI
+        # DISTRACTOR ANALYSIS WITH DDI + 2 EXTRA COLUMNS
         # ======================================================================
         distractor_results = []
         if mode == "multiple_choice" and answer_key:
@@ -364,7 +364,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     ddi_interpretation, _ = interpret_ddi(ddi)
                     
                     # ==========================================================
-                    # TAMBAHAN: EXPLICIT CRITERIA FLAGS (YANG ANDA MINTA)
+                    # EXTRA COLUMNS: '>=5%' and 'Lower > Upper'
                     # ==========================================================
                     meets_percent = percent >= 5.0
                     meets_lower_upper = lower_select > upper_select
@@ -432,7 +432,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
             st.dataframe(df_results, use_container_width=True)
             
             # ==================================================================
-            # SECTION 3: DISTRACTOR ANALYSIS WITH DDI
+            # SECTION 3: DISTRACTOR ANALYSIS WITH DDI + EXTRA COLUMNS
             # ==================================================================
             if distractor_results:
                 st.markdown("---")
@@ -440,7 +440,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.caption("**DDI (Distractor Discrimination Index)** = Proportion Lower - Proportion Upper | DDI > 0 indicates a functional distractor")
                 st.caption("**Criteria for functional distractor:** (1) Selected by >=5% of students, (2) More low-ability than high-ability students choose them")
                 
-                # TAMBAHAN: columns sekarang termasuk '>=5%' dan 'Lower > Upper'
+                # EXTRA COLUMNS INCLUDED: '>=5%' and 'Lower > Upper'
                 df_distractor = pd.DataFrame(distractor_results, columns=[
                     'Item', 'Key', 'Option', 
                     'N_Select', 'Percent', 
@@ -466,7 +466,7 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.dataframe(df_ddi_summary, use_container_width=True)
             
             # ==================================================================
-            # SECTION 4: VISUALIZATIONS (ALL CHARTS BELOW TABLES)
+            # SECTION 4: VISUALIZATIONS (ALL 9 CHARTS RESTORED)
             # ==================================================================
             st.markdown("---")
             st.markdown("## 📊 VISUALIZATIONS")
@@ -633,21 +633,51 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                 st.pyplot(fig8)
                 plt.close()
             
-            # Row 5: Correlation Heatmap (if more than 1 item)
-            if n_items > 1:
-                st.markdown("### 9. Inter-Item Correlation Heatmap")
-                fig9, ax9 = plt.subplots(figsize=(max(8, n_items*0.5), max(6, n_items*0.4)))
-                correlation_matrix = df_scores.corr()
-                mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
-                sns.heatmap(correlation_matrix, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r', center=0, 
-                            square=True, linewidths=0.5, ax=ax9, 
-                            annot_kws={'size': 8}, cbar_kws={'shrink': 0.8})
-                ax9.set_title('Inter-Item Correlation Matrix (r > 0.30 indicates potential redundancy)', fontsize=12)
+            # Row 5: Standard Error and Alpha if Deleted
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 9. Standard Error by Item")
+                fig9, ax9 = plt.subplots(figsize=(8, 5))
+                ax9.bar(range(1, n_items+1), se_values, color='#9b59b6', alpha=0.7, edgecolor='black')
+                ax9.set_xlabel('Item Number')
+                ax9.set_ylabel('Standard Error (SE)')
+                ax9.set_title('Standard Error of Item Proportion')
+                ax9.set_xticks(range(1, n_items+1))
+                ax9.grid(axis='y', alpha=0.3)
                 st.pyplot(fig9)
                 plt.close()
             
+            with col2:
+                st.markdown("### 10. Alpha if Item Deleted")
+                fig10, ax10 = plt.subplots(figsize=(8, 5))
+                colors_alpha = ['#2ecc71' if x <= kr20 else '#e74c3c' for x in alpha_if_deleted_values]
+                ax10.bar(range(1, n_items+1), alpha_if_deleted_values, color=colors_alpha, edgecolor='black')
+                ax10.axhline(kr20, color='blue', linestyle='--', linewidth=2, label=f'Overall KR-20 = {kr20:.4f}')
+                ax10.set_xlabel('Item Number')
+                ax10.set_ylabel('Alpha if Item Deleted')
+                ax10.set_title('Impact on Reliability if Item Removed')
+                ax10.set_xticks(range(1, n_items+1))
+                ax10.legend()
+                ax10.grid(axis='y', alpha=0.3)
+                st.pyplot(fig10)
+                plt.close()
+            
+            # Row 6: Correlation Heatmap
+            if n_items > 1:
+                st.markdown("### 11. Inter-Item Correlation Heatmap")
+                fig11, ax11 = plt.subplots(figsize=(max(8, n_items*0.5), max(6, n_items*0.4)))
+                correlation_matrix = df_scores.corr()
+                mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+                sns.heatmap(correlation_matrix, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r', center=0, 
+                            square=True, linewidths=0.5, ax=ax11, 
+                            annot_kws={'size': 8}, cbar_kws={'shrink': 0.8})
+                ax11.set_title('Inter-Item Correlation Matrix (r > 0.30 indicates potential redundancy)', fontsize=12)
+                st.pyplot(fig11)
+                plt.close()
+            
             # ==================================================================
-            # SECTION 5: DOWNLOAD RESULTS
+            # SECTION 5: DOWNLOAD RESULTS (COMPLETE)
             # ==================================================================
             st.markdown("---")
             st.markdown("## 📥 DOWNLOAD RESULTS")
