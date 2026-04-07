@@ -1,25 +1,6 @@
 # ======================================================================
 # ITEM ANALYSIS - STREAMLIT VERSION (COMPLETE + OPTIMIZED)
 # ======================================================================
-# COMPLETE FEATURES (ALL PRESERVED):
-# 1. p (difficulty index)
-# 2. q (1-p)
-# 3. pq (item variance)
-# 4. p_upper (upper group proportion correct)
-# 5. p_lower (lower group proportion correct)
-# 6. D (discrimination index)
-# 7. SE (standard error of item)
-# 8. r_it (corrected item-total correlation)
-# 9. KR-20 (reliability)
-# 10. Alpha if item deleted
-# 11. SEM (standard error of measurement)
-# 12. DDI (Distractor Discrimination Index)
-# 13. EXPLICIT CRITERIA FLAGS: '>=5%' and 'Lower > Upper'
-# 14. ALL 11 VISUALIZATIONS (complete)
-# 15. Multi-sheet Excel export (complete)
-# 16. Max file size 5MB
-# 17. DATA SUMMARY table
-# ======================================================================
 
 import streamlit as st
 import pandas as pd
@@ -440,37 +421,41 @@ if st.session_state.file_loaded and st.session_state.df is not None:
                     st.caption("**Interpretation:** Σpq is the sum of item variances used in KR-20 calculation.")
                 
                 # --------------------------------------------------------------
-                # COMPLETE ITEM STATISTICS TABLE
+                # COMPLETE ITEM STATISTICS TABLE WITH COLOR CODING
                 # --------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("## 📊 COMPLETE ITEM STATISTICS")
                 st.caption("This table shows all psychometric properties for each test item.")
                 st.caption("**Color coding:** p (Green=Moderate, Red=Difficult, Orange=Easy) | D (Green=Very Good, Orange=Fair, Red=Poor) | r_it (Green=Valid, Red=Invalid)")
                 
-                # Color coding function
-                def color_val(val, col):
-                    if col == 'p':
-                        if val < difficult_threshold:
-                            return 'background-color: #ffcccc'
-                        elif val <= easy_threshold:
-                            return 'background-color: #ccffcc'
-                        else:
-                            return 'background-color: #ffe6cc'
-                    elif col == 'D':
-                        if val < poor_threshold:
-                            return 'background-color: #ffcccc'
-                        elif val < good_threshold:
-                            return 'background-color: #ffe6cc'
-                        else:
-                            return 'background-color: #ccffcc'
-                    elif col == 'r_it':
-                        if val >= valid_threshold:
-                            return 'background-color: #ccffcc'
-                        else:
-                            return 'background-color: #ffcccc'
-                    return ''
+                # FIXED: Use apply instead of applymap
+                def color_p(val):
+                    if val < difficult_threshold:
+                        return 'background-color: #ffcccc'
+                    elif val <= easy_threshold:
+                        return 'background-color: #ccffcc'
+                    else:
+                        return 'background-color: #ffe6cc'
                 
-                styled_df = df_results.style.applymap(lambda x, col: color_val(x, col) if isinstance(x, (int, float)) else '', subset=['p', 'D', 'r_it'])
+                def color_d(val):
+                    if val < poor_threshold:
+                        return 'background-color: #ffcccc'
+                    elif val < good_threshold:
+                        return 'background-color: #ffe6cc'
+                    else:
+                        return 'background-color: #ccffcc'
+                
+                def color_r(val):
+                    if val >= valid_threshold:
+                        return 'background-color: #ccffcc'
+                    else:
+                        return 'background-color: #ffcccc'
+                
+                styled_df = df_results.style
+                styled_df = styled_df.map(color_p, subset=['p'])
+                styled_df = styled_df.map(color_d, subset=['D'])
+                styled_df = styled_df.map(color_r, subset=['r_it'])
+                
                 st.dataframe(styled_df, use_container_width=True)
                 
                 # --------------------------------------------------------------
