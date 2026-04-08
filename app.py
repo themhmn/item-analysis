@@ -80,8 +80,10 @@ if student_file and key_file:
     for i, item in enumerate(item_cols):
         p = df_scores[item].mean()
         q = 1 - p
+        # Discrimination: Kelley’s D
         p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
         d_val = p_up - p_lo 
+        # Corrected item-total correlation
         corrected_total = total_scores - df_scores[item]
         r_pb, _ = pointbiserialr(df_scores[item], corrected_total) if df_scores[item].var() != 0 else (0,0)
 
@@ -90,8 +92,8 @@ if student_file and key_file:
         d_desc = "Excellent" if d_val >= 0.4 else "Good" if d_val >= 0.3 else "Fair" if d_val >= 0.2 else "Poor"
         r_desc = "Valid" if r_pb >= validity_limit else "Invalid"
         
-        # Decision Logic
-        if r_pb >= validity_limit and d_val >= 0.3:
+        # Decision Logic (adjusted to CTT standards)
+        if r_pb >= 0.3 and d_val >= 0.3:
             decision = "RETAIN"
         elif r_pb >= 0.2 and d_val >= 0.2:
             decision = "REVISE"
@@ -103,7 +105,7 @@ if student_file and key_file:
             "p": p, "p_Eval": p_desc, 
             "q": q, "pq": p*q,
             "ddi": d_val, 
-            "d": p, 
+            "d": d_val,  # <-- diperbaiki, kini kolom 'd' = discrimination index
             "d_Eval": d_desc, 
             "r_pbis": r_pb, "r_Eval": r_desc, 
             "DECISION": decision
@@ -191,16 +193,11 @@ if student_file and key_file:
 
     # 4. FUNGSI PEWARNAAN MANUAL (AGAR TIDAK ERROR LAGI)
     def color_distractor(text_df):
-        # Membuat dataframe kosong untuk menyimpan style warna
         color_df = pd.DataFrame('', index=text_df.index, columns=text_df.columns)
         for col in cols:
-            # Mengambil warna dari data angka (df_dist_num)
-            colors = st.format_dict.get('YlGn') # Placeholder logika warna
-            # Kita gunakan background_gradient versi standar Pandas yang lebih stabil:
             return df_dist_num.style.background_gradient(cmap='YlGn', subset=cols).data
         return color_df
 
-    # TAMPILAN WEB (Cara paling stabil: Style pada angka, lalu format tampilannya)
     st.dataframe(
         df_dist_num.style
         .background_gradient(cmap='YlGn', subset=cols)
@@ -226,12 +223,8 @@ if student_file and key_file:
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
-        
-        # PAKAI df_dist_final AGAR PERSENTASE MUNCUL DI EXCEL
         df_dist_final.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
-        
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
-        
         workbook = writer.book
         for sheet in writer.sheets.values():
             sheet.set_column('A:Z', 22)
