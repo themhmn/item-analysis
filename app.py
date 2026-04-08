@@ -26,7 +26,7 @@ st.write("Full Classical Test Theory Suite: Methodologically validated metrics f
 with st.sidebar:
     st.header("📊 Methodological Legend")
     
-    with st.expander("1. Difficulty Index (p)", expanded=True):
+    with st.expander("1. Difficulty Index (p/d)", expanded=True):
         st.write("""
         Shows the difficulty level of the test item.
         - **Easy (p > 0.70):** 🟢
@@ -34,28 +34,13 @@ with st.sidebar:
         - **Difficult (p < 0.30):** 🔴
         """)
 
-    with st.expander("2. Discrimination (ddi/d)", expanded=True):
+    with st.expander("2. Discrimination (ddi)", expanded=True):
         st.write("""
         The ability to distinguish between high and low-performing students.
-        - **Excellent (d ≥ 0.40):** 🟢
+        - **Excellent (ddi ≥ 0.40):** 🟢
         - **Good (0.30 - 0.39):** 🔵
         - **Fair (0.20 - 0.29):** 🟡 (Revision Required)
-        - **Poor (d < 0.20):** 🔴 (Reject/Discard)
-        """)
-
-    with st.expander("3. Validity (r_pbis)", expanded=True):
-        st.write("""
-        Point-biserial correlation between item score and total score.
-        - **Valid:** ≥ Threshold 🟢
-        - **Invalid:** < Threshold 🔴
-        - *Negative values indicate problematic items.*
-        """)
-
-    with st.expander("4. ddi, pq & SEM"):
-        st.write("""
-        - **ddi:** Discrimination Difficulty Index.
-        - **pq:** Item Variance ($p \\times q$).
-        - **SEM:** Standard Error of Measurement.
+        - **Poor (ddi < 0.20):** 🔴 (Reject/Discard)
         """)
 
     st.header("⚙️ Settings")
@@ -96,7 +81,7 @@ if student_file and key_file:
         p = df_scores[item].mean()
         q = 1 - p
         p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
-        d_val = p_up - p_lo
+        d_val = p_up - p_lo 
         r_pb, _ = pointbiserialr(df_scores[item], total_scores) if df_scores[item].var() != 0 else (0,0)
 
         # Descriptive Logic
@@ -116,7 +101,9 @@ if student_file and key_file:
             "Item": item, 
             "p": p, "p_Eval": p_desc, 
             "q": q, "pq": p*q,
-            "ddi": d_val, "d": d_val, "d_Eval": d_desc, 
+            "ddi": d_val, 
+            "d": p, 
+            "d_Eval": d_desc, 
             "r_pbis": r_pb, "r_Eval": r_desc, 
             "DECISION": decision
         })
@@ -130,7 +117,7 @@ if student_file and key_file:
     kr20 = (n_items/(n_items-1)) * (1 - (df_res["pq"].sum()/var_total)) if var_total > 0 else 0
     sem = std_score * np.sqrt(1 - kr20)
 
-    # METRIC DASHBOARD
+    # DASHBOARD
     st.divider()
     m1, m2, m3, m4, m5, m6 = st.columns(6)
     m1.metric("Students (N)", n_students)
@@ -140,30 +127,43 @@ if student_file and key_file:
     m5.metric("KR-20 Reliability", f"{kr20:.3f}")
     m6.metric("SEM (Error)", f"{sem:.3f}")
 
-    # 6. STYLING (TRAFFIC LIGHT)
-    def apply_academic_style(row):
+    # 6. FULL STATISTICAL STYLING (TRAFFIC LIGHT SYSTEM)
+    def apply_full_styling(row):
         styles = [''] * len(row)
-        if row['p'] < 0.3: styles[1] = 'background-color: #ffcccc'
-        elif row['p'] > 0.7: styles[1] = 'background-color: #ccffcc'
-        else: styles[1] = 'background-color: #fff2cc'
-        if row['ddi'] >= 0.4: 
-            styles[5] = 'background-color: #2ecc71; color: white'
-            styles[6] = 'background-color: #2ecc71; color: white'
-        elif row['ddi'] < 0.2: 
-            styles[5] = 'background-color: #e74c3c; color: white'
-            styles[6] = 'background-color: #e74c3c; color: white'
-        else: 
-            styles[5] = 'background-color: #f1c40f'
-            styles[6] = 'background-color: #f1c40f'
-        if row['r_pbis'] < validity_limit:
-            styles[8] = 'color: #e74c3c; font-weight: bold'
-            styles[9] = 'background-color: #ffcccc'
-        else:
-            styles[9] = 'background-color: #ccffcc'
+        
+        # Difficulty Styling (p & d)
+        dif_color = '#ccffcc' if row['p'] > 0.7 else '#ffcccc' if row['p'] < 0.3 else '#fff2cc'
+        styles[1] = f'background-color: {dif_color}; color: black' # p
+        styles[2] = f'background-color: {dif_color}; color: black' # p_Eval
+        styles[6] = f'background-color: {dif_color}; color: black' # d (Difficulty)
+
+        # Discrimination Styling (ddi)
+        if row['ddi'] >= 0.4: dis_color, txt = '#2ecc71', 'white'
+        elif row['ddi'] >= 0.3: dis_color, txt = '#3498db', 'white'
+        elif row['ddi'] >= 0.2: dis_color, txt = '#f1c40f', 'black'
+        else: dis_color, txt = '#e74c3c', 'white'
+        
+        styles[5] = f'background-color: {dis_color}; color: {txt}' # ddi
+        styles[7] = f'background-color: {dis_color}; color: {txt}' # d_Eval (Discrimination Desc)
+
+        # Validity Styling (r_pbis)
+        val_bg = '#ccffcc' if row['r_pbis'] >= validity_limit else '#ffcccc'
+        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold' # r_pbis
+        styles[9] = f'background-color: {val_bg}; color: black' # r_Eval
+
+        # Decision Styling
+        if row['DECISION'] == "RETAIN": styles[10] = 'background-color: #27ae60; color: white; font-weight: bold'
+        elif row['DECISION'] == "REVISE": styles[10] = 'background-color: #f39c12; color: white'
+        else: styles[10] = 'background-color: #c0392b; color: white'
+
         return styles
 
     st.subheader("📋 Comprehensive Item Statistics Matrix & Validity Report")
-    st.dataframe(df_res.style.apply(apply_academic_style, axis=1).format("{:.3f}", subset=["p", "q", "pq", "ddi", "d", "r_pbis"]), use_container_width=True)
+    st.dataframe(
+        df_res.style.apply(apply_full_styling, axis=1)
+        .format("{:.3f}", subset=["p", "q", "pq", "ddi", "d", "r_pbis"]), 
+        use_container_width=True
+    )
 
     # 7. AUTOMATIC REPORT
     st.divider()
@@ -183,9 +183,7 @@ if student_file and key_file:
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     
-    # Menambahkan interpretasi distraktor
     def interpret_distractor(row):
-        # Distraktor dianggap efektif jika dipilih oleh minimal 5% peserta
         effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
         return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
     
@@ -195,11 +193,11 @@ if student_file and key_file:
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
-        "Metric": ["Difficulty (p)", "Discrimination (d)", "r_pbis", "KR-20", "SEM"],
+        "Metric": ["Difficulty (d)", "Discrimination (ddi)", "r_pbis", "KR-20", "SEM"],
         "Ideal Range": ["0.30 - 0.70", "≥ 0.30", "≥ Threshold", "≥ 0.70", "Lower is Better"],
         "Description": [
-            "Moderate level is best for norm-referenced tests.",
-            "Distinguishes between high and low achievers.",
+            "Moderate level (d) is best for norm-referenced tests.",
+            "Discrimination (ddi) distinguishes between high and low achievers.",
             "Correlation between item and total test score.",
             "Internal consistency of the entire test.",
             "Precision of the scores obtained."
@@ -207,21 +205,19 @@ if student_file and key_file:
     }
     df_guide = pd.DataFrame(guide_data)
 
-    # EXPORT WITH 3 SHEETS
+    # EXPORT
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
         df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
         
-        # Formatting Excel
         workbook = writer.book
-        header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
         for sheet in writer.sheets.values():
             sheet.set_column('A:Z', 18)
             
     st.download_button(
-        label="📥 Download Full Academic Report (3 Sheets)",
+        label="📥 Download Full Report",
         data=buf.getvalue(),
         file_name="Complete_Item_Analysis_Report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
