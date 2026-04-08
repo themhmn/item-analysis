@@ -96,15 +96,13 @@ if student_file and key_file:
         p = df_scores[item].mean()
         q = 1 - p
         p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
-        d_val = p_up - p_lo # Ini adalah Daya Beda
+        d_val = p_up - p_lo 
         r_pb, _ = pointbiserialr(df_scores[item], total_scores) if df_scores[item].var() != 0 else (0,0)
 
-        # Descriptive Logic
         p_desc = "Easy" if p > 0.7 else "Difficult" if p < 0.3 else "Moderate"
         d_desc = "Excellent" if d_val >= 0.4 else "Good" if d_val >= 0.3 else "Fair" if d_val >= 0.2 else "Poor"
         r_desc = "Valid" if r_pb >= validity_limit else "Invalid"
         
-        # Decision Logic
         if r_pb >= validity_limit and d_val >= 0.3:
             decision = "RETAIN"
         elif r_pb >= 0.2 and d_val >= 0.2:
@@ -116,8 +114,8 @@ if student_file and key_file:
             "Item": item, 
             "p": p, "p_Eval": p_desc, 
             "q": q, "pq": p*q,
-            "ddi": d_val,      # ddi = Discrimination Index (Pu - Pl)
-            "d": p,            # d = Difficulty Index (R/T) - SEKARANG BENAR
+            "ddi": d_val,      
+            "d": p,            
             "d_Eval": d_desc, 
             "r_pbis": r_pb, "r_Eval": r_desc, 
             "DECISION": decision
@@ -149,7 +147,6 @@ if student_file and key_file:
         elif row['p'] > 0.7: styles[1] = 'background-color: #ccffcc'
         else: styles[1] = 'background-color: #fff2cc'
         
-        # Style berdasarkan ddi (Discrimination)
         if row['ddi'] >= 0.4: 
             styles[5] = 'background-color: #2ecc71; color: white'
         elif row['ddi'] < 0.2: 
@@ -157,7 +154,6 @@ if student_file and key_file:
         else: 
             styles[5] = 'background-color: #f1c40f'
             
-        # Style kolom d (sekarang mengikuti p/Difficulty)
         if row['d'] < 0.3: styles[6] = 'background-color: #ffcccc'
         elif row['d'] > 0.7: styles[6] = 'background-color: #ccffcc'
         
@@ -183,19 +179,28 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS
+    # 8. DISTRACTOR ANALYSIS (GABUNGAN FREKUENSI DAN PERSENTASE)
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
-    dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
-    df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
-    cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     
-    def interpret_distractor(row):
-        effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
+    # Menghitung frekuensi (angka mutlak) dan persentase
+    dist_freq = df[item_cols].apply(lambda x: x.astype(str).str.upper().str.strip().value_counts()).fillna(0)
+    dist_pct = df[item_cols].apply(lambda x: x.astype(str).str.upper().str.strip().value_counts(normalize=True)).fillna(0)
+    
+    # Gabungkan menjadi satu DataFrame dengan format XX.XXX (XX.XX%)
+    df_dist_combined = pd.DataFrame(index=item_cols)
+    cols = sorted([c for c in dist_pct.index if len(str(c)) == 1]) + sorted([c for c in dist_pct.index if len(str(c)) > 1])
+    
+    for col in cols:
+        df_dist_combined[col] = [f"{f:.3f} ({p:.2%})" for f, p in zip(dist_freq.loc[col], dist_pct.loc[col])]
+    
+    def interpret_distractor_combined(row_idx):
+        effective = [opt for opt in cols if dist_pct.loc[opt, row_idx] >= 0.05 and opt != "N/A"]
         return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
     
-    df_dist_styled = df_dist[cols].copy()
-    df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols).format("{:.2%}", subset=cols), use_container_width=True)
+    df_dist_combined['Interpretation'] = [interpret_distractor_combined(item) for item in item_cols]
+    
+    # Tampilkan di website
+    st.dataframe(df_dist_combined, use_container_width=True)
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
@@ -211,16 +216,16 @@ if student_file and key_file:
     }
     df_guide = pd.DataFrame(guide_data)
 
-    # EXPORT
+    # EXPORT (MENGGUNAKAN DF_DIST_COMBINED UNTUK EXCEL)
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
-        df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
+        df_dist_combined.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
         
         workbook = writer.book
         for sheet in writer.sheets.values():
-            sheet.set_column('A:Z', 18)
+            sheet.set_column('A:Z', 25)
             
     st.download_button(
         label="📥 Download Full Report",
