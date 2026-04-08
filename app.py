@@ -40,13 +40,13 @@ with st.sidebar:
 # ======================================================================
 def cronbach_alpha(df_scores):
     k = df_scores.shape[1]
+    if k <= 1:
+        return np.nan
     item_var = df_scores.var(ddof=1)
     total_var = df_scores.sum(axis=1).var(ddof=1)
-
-    if total_var == 0 or k <= 1:
+    if total_var == 0:
         return np.nan
-
-    return (k/(k-1)) * (1 - (item_var.sum()/total_var))
+    return (k / (k-1)) * (1 - (item_var.sum() / total_var))
 
 def interpret_reliability(val):
     if np.isnan(val):
@@ -65,6 +65,9 @@ def check_dimensionality(df_scores):
     eigenvalues = np.linalg.eigvals(corr)
     eigenvalues = np.sort(eigenvalues)[::-1]
     return eigenvalues
+
+def standard_error(p, q, n):
+    return np.sqrt((p*q)/n) if n > 0 else np.nan
 
 # ======================================================================
 # FILE INPUT
@@ -117,7 +120,7 @@ if student_file and key_file:
 
         p = df_scores[item].mean()
         q = 1 - p
-        pq = p*q
+        pq = p * q
         pq_values.append(pq)
 
         key = answer_key[i]
@@ -127,17 +130,15 @@ if student_file and key_file:
 
         d = p_upper - p_lower
 
-        # ✅ Correct SE
-        se = np.sqrt(pq / n_students) if n_students > 0 else np.nan
+        se = standard_error(p, q, n_students)
 
         total_minus = df['total_score'] - df_scores[item]
 
-        if df_scores[item].var() == 0 or total_minus.var() == 0:
+        if df_scores[item].var(ddof=1) == 0 or total_minus.var(ddof=1) == 0:
             r = 0
         else:
             r, _ = pointbiserialr(df_scores[item], total_minus)
 
-        # Alpha if deleted (general)
         alpha_del = cronbach_alpha(df_scores.drop(columns=[item]))
 
         results.append([
@@ -154,17 +155,9 @@ if student_file and key_file:
     total_variance = df['total_score'].var(ddof=1)
     sum_pq = sum(pq_values)
 
-    if total_variance > 0 and n_items > 1:
-        kr20 = (n_items/(n_items-1)) * (1 - (sum_pq / total_variance))
-    else:
-        kr20 = np.nan
-
+    kr20 = (n_items/(n_items-1)) * (1 - (sum_pq / total_variance)) if total_variance > 0 and n_items > 1 else np.nan
     alpha = cronbach_alpha(df_scores)
-
-    if not np.isnan(kr20):
-        sem = df['total_score'].std(ddof=1) * np.sqrt(1 - kr20)
-    else:
-        sem = np.nan
+    sem = df['total_score'].std(ddof=1) * np.sqrt(1 - kr20) if not np.isnan(kr20) else np.nan
 
     # ==================================================================
     # DIMENSIONALITY CHECK
@@ -175,11 +168,10 @@ if student_file and key_file:
     # REDUNDANCY CHECK
     # ==================================================================
     corr_matrix = df_scores.corr()
-    high_corr_pairs = []
-    for i in range(len(corr_matrix.columns)):
-        for j in range(i+1, len(corr_matrix.columns)):
-            if abs(corr_matrix.iloc[i,j]) > 0.70:
-                high_corr_pairs.append((corr_matrix.columns[i], corr_matrix.columns[j]))
+    high_corr_pairs = [(corr_matrix.columns[i], corr_matrix.columns[j])
+                       for i in range(len(corr_matrix.columns))
+                       for j in range(i+1, len(corr_matrix.columns))
+                       if abs(corr_matrix.iloc[i,j]) > 0.70]
 
     # ==================================================================
     # OUTPUT
@@ -189,27 +181,18 @@ if student_file and key_file:
 
     st.subheader("📈 Reliability")
     col1, col2, col3 = st.columns(3)
-
     col1.metric("KR-20", f"{kr20:.4f}" if not np.isnan(kr20) else "Undefined")
     col2.metric("Cronbach Alpha", f"{alpha:.4f}" if not np.isnan(alpha) else "Undefined")
     col3.metric("SEM", f"{sem:.4f}" if not np.isnan(sem) else "Undefined")
-
     st.write("Interpretation:", interpret_reliability(alpha))
 
-    # ==================================================================
-    # DIMENSIONALITY
-    # ==================================================================
     st.subheader("🧠 Dimensionality Check (Eigenvalues)")
     st.write("Eigenvalues:", np.round(eigenvalues, 3))
-
-    if eigenvalues[0] / eigenvalues[1] > 3:
+    if eigenvalues[1] > 0 and eigenvalues[0]/eigenvalues[1] > 3:
         st.success("Likely Unidimensional")
     else:
         st.warning("Possible Multidimensional Structure")
 
-    # ==================================================================
-    # REDUNDANCY
-    # ==================================================================
     st.subheader("🔁 Item Redundancy (r > 0.70)")
     if high_corr_pairs:
         for pair in high_corr_pairs:
@@ -217,9 +200,6 @@ if student_file and key_file:
     else:
         st.write("No high redundancy detected")
 
-    # ==================================================================
-    # HEATMAP
-    # ==================================================================
     st.subheader("📊 Inter-Item Correlation")
     fig, ax = plt.subplots(figsize=(8,6))
     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0)
@@ -231,11 +211,6 @@ if student_file and key_file:
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_results.to_excel(writer, sheet_name='Item Stats', index=False)
-
-        pd.DataFrame({
-            'KR20':[kr20],
-            'Alpha':[alpha],
-            'SEM':[sem]
-        }).to_excel(writer, sheet_name='Reliability', index=False)
+        pd.DataFrame({'KR20':[kr20], 'Alpha':[alpha], 'SEM':[sem]}).to_excel(writer, sheet_name='Reliability', index=False)
 
     st.download_button("📥 Download Excel", data=output.getvalue(), file_name="analysis.xlsx")
