@@ -130,32 +130,25 @@ if student_file and key_file:
     # 6. FULL STATISTICAL STYLING (TRAFFIC LIGHT SYSTEM)
     def apply_full_styling(row):
         styles = [''] * len(row)
-        
-        # Difficulty Styling (p & d)
         dif_color = '#ccffcc' if row['p'] > 0.7 else '#ffcccc' if row['p'] < 0.3 else '#fff2cc'
-        styles[1] = f'background-color: {dif_color}; color: black' # p
-        styles[2] = f'background-color: {dif_color}; color: black' # p_Eval
-        styles[6] = f'background-color: {dif_color}; color: black' # d (Difficulty)
+        styles[1] = f'background-color: {dif_color}; color: black'
+        styles[2] = f'background-color: {dif_color}; color: black'
+        styles[6] = f'background-color: {dif_color}; color: black'
 
-        # Discrimination Styling (ddi)
         if row['ddi'] >= 0.4: dis_color, txt = '#2ecc71', 'white'
         elif row['ddi'] >= 0.3: dis_color, txt = '#3498db', 'white'
         elif row['ddi'] >= 0.2: dis_color, txt = '#f1c40f', 'black'
         else: dis_color, txt = '#e74c3c', 'white'
-        
-        styles[5] = f'background-color: {dis_color}; color: {txt}' # ddi
-        styles[7] = f'background-color: {dis_color}; color: {txt}' # d_Eval (Discrimination Desc)
+        styles[5] = f'background-color: {dis_color}; color: {txt}'
+        styles[7] = f'background-color: {dis_color}; color: {txt}'
 
-        # Validity Styling (r_pbis)
         val_bg = '#ccffcc' if row['r_pbis'] >= validity_limit else '#ffcccc'
-        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold' # r_pbis
-        styles[9] = f'background-color: {val_bg}; color: black' # r_Eval
+        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold'
+        styles[9] = f'background-color: {val_bg}; color: black'
 
-        # Decision Styling
         if row['DECISION'] == "RETAIN": styles[10] = 'background-color: #27ae60; color: white; font-weight: bold'
         elif row['DECISION'] == "REVISE": styles[10] = 'background-color: #f39c12; color: white'
         else: styles[10] = 'background-color: #c0392b; color: white'
-
         return styles
 
     st.subheader("📋 Comprehensive Item Statistics Matrix & Validity Report")
@@ -177,7 +170,7 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS
+    # 8. DISTRACTOR ANALYSIS (MODIFIED SECTION)
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
@@ -188,8 +181,13 @@ if student_file and key_file:
         return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
     
     df_dist_styled = df_dist[cols].copy()
+    
+    # Apply combined format: 0.1000 (10.00%)
+    for col in cols:
+        df_dist_styled[col] = df_dist_styled[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
+    
     df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols).format("{:.2%}", subset=cols), use_container_width=True)
+    st.dataframe(df_dist_styled, use_container_width=True)
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
@@ -214,7 +212,7 @@ if student_file and key_file:
         
         workbook = writer.book
         for sheet in writer.sheets.values():
-            sheet.set_column('A:Z', 18)
+            sheet.set_column('A:Z', 22)
             
     st.download_button(
         label="📥 Download Full Report",
