@@ -143,11 +143,9 @@ if student_file and key_file:
     # 6. STYLING (TRAFFIC LIGHT)
     def apply_academic_style(row):
         styles = [''] * len(row)
-        # p Styling
         if row['p'] < 0.3: styles[1] = 'background-color: #ffcccc'
         elif row['p'] > 0.7: styles[1] = 'background-color: #ccffcc'
         else: styles[1] = 'background-color: #fff2cc'
-        # ddi/d Styling (index 5 and 6)
         if row['ddi'] >= 0.4: 
             styles[5] = 'background-color: #2ecc71; color: white'
             styles[6] = 'background-color: #2ecc71; color: white'
@@ -157,7 +155,6 @@ if student_file and key_file:
         else: 
             styles[5] = 'background-color: #f1c40f'
             styles[6] = 'background-color: #f1c40f'
-        # r_pbis & r_Eval Styling
         if row['r_pbis'] < validity_limit:
             styles[8] = 'color: #e74c3c; font-weight: bold'
             styles[9] = 'background-color: #ffcccc'
@@ -185,10 +182,47 @@ if student_file and key_file:
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
-    st.dataframe(df_dist[cols].style.background_gradient(cmap='YlGn').format("{:.2%}"), use_container_width=True)
+    
+    # Menambahkan interpretasi distraktor
+    def interpret_distractor(row):
+        # Distraktor dianggap efektif jika dipilih oleh minimal 5% peserta
+        effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
+        return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
+    
+    df_dist_styled = df_dist[cols].copy()
+    df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
+    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols).format("{:.2%}", subset=cols), use_container_width=True)
 
-    # EXPORT
+    # 9. PANDUAN MEMBACA DATA (GUIDE)
+    guide_data = {
+        "Metric": ["Difficulty (p)", "Discrimination (d)", "r_pbis", "KR-20", "SEM"],
+        "Ideal Range": ["0.30 - 0.70", "≥ 0.30", "≥ Threshold", "≥ 0.70", "Lower is Better"],
+        "Description": [
+            "Moderate level is best for norm-referenced tests.",
+            "Distinguishes between high and low achievers.",
+            "Correlation between item and total test score.",
+            "Internal consistency of the entire test.",
+            "Precision of the scores obtained."
+        ]
+    }
+    df_guide = pd.DataFrame(guide_data)
+
+    # EXPORT WITH 3 SHEETS
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-        df_res.to_excel(writer, index=False, sheet_name='ItemAnalysis')
-    st.download_button("📥 Download Full Academic Report", data=buf.getvalue(), file_name="Item_Analysis_Report.xlsx")
+        df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
+        df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
+        df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
+        
+        # Formatting Excel
+        workbook = writer.book
+        header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
+        for sheet in writer.sheets.values():
+            sheet.set_column('A:Z', 18)
+            
+    st.download_button(
+        label="📥 Download Full Academic Report (3 Sheets)",
+        data=buf.getvalue(),
+        file_name="Complete_Item_Analysis_Report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
