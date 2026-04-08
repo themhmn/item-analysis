@@ -127,43 +127,29 @@ if student_file and key_file:
     m5.metric("KR-20 Reliability", f"{kr20:.3f}")
     m6.metric("SEM (Error)", f"{sem:.3f}")
 
-    # 6. FULL STATISTICAL STYLING (TRAFFIC LIGHT SYSTEM)
+    # 6. FULL STATISTICAL STYLING
     def apply_full_styling(row):
         styles = [''] * len(row)
-        
-        # Difficulty Styling (p & d)
         dif_color = '#ccffcc' if row['p'] > 0.7 else '#ffcccc' if row['p'] < 0.3 else '#fff2cc'
-        styles[1] = f'background-color: {dif_color}; color: black' # p
-        styles[2] = f'background-color: {dif_color}; color: black' # p_Eval
-        styles[6] = f'background-color: {dif_color}; color: black' # d (Difficulty)
-
-        # Discrimination Styling (ddi)
+        styles[1] = f'background-color: {dif_color}; color: black' 
+        styles[2] = f'background-color: {dif_color}; color: black'
+        styles[6] = f'background-color: {dif_color}; color: black'
         if row['ddi'] >= 0.4: dis_color, txt = '#2ecc71', 'white'
         elif row['ddi'] >= 0.3: dis_color, txt = '#3498db', 'white'
         elif row['ddi'] >= 0.2: dis_color, txt = '#f1c40f', 'black'
         else: dis_color, txt = '#e74c3c', 'white'
-        
-        styles[5] = f'background-color: {dis_color}; color: {txt}' # ddi
-        styles[7] = f'background-color: {dis_color}; color: {txt}' # d_Eval (Discrimination Desc)
-
-        # Validity Styling (r_pbis)
+        styles[5] = f'background-color: {dis_color}; color: {txt}'
+        styles[7] = f'background-color: {dis_color}; color: {txt}'
         val_bg = '#ccffcc' if row['r_pbis'] >= validity_limit else '#ffcccc'
-        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold' # r_pbis
-        styles[9] = f'background-color: {val_bg}; color: black' # r_Eval
-
-        # Decision Styling
+        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold'
+        styles[9] = f'background-color: {val_bg}; color: black'
         if row['DECISION'] == "RETAIN": styles[10] = 'background-color: #27ae60; color: white; font-weight: bold'
         elif row['DECISION'] == "REVISE": styles[10] = 'background-color: #f39c12; color: white'
         else: styles[10] = 'background-color: #c0392b; color: white'
-
         return styles
 
     st.subheader("📋 Comprehensive Item Statistics Matrix & Validity Report")
-    st.dataframe(
-        df_res.style.apply(apply_full_styling, axis=1)
-        .format("{:.3f}", subset=["p", "q", "pq", "ddi", "d", "r_pbis"]), 
-        use_container_width=True
-    )
+    st.dataframe(df_res.style.apply(apply_full_styling, axis=1).format("{:.3f}", subset=["p", "q", "pq", "ddi", "d", "r_pbis"]), use_container_width=True)
 
     # 7. AUTOMATIC REPORT
     st.divider()
@@ -177,31 +163,34 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS
+    # 8. DISTRACTOR ANALYSIS (MODIFIED TO: ANGKA (PERSENTASE))
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
-    dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
-    df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
-    cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
+    dist_list = []
+    for item in item_cols:
+        counts = df[item].astype(str).str.upper().str.strip().value_counts()
+        row = {"Item": item}
+        for opt, freq in counts.items():
+            pct = (freq / n_students) * 100
+            row[opt] = f"{freq} ({pct:.0f}%)" # Format: 1 (10%)
+        dist_list.append(row)
     
+    df_dist_styled = pd.DataFrame(dist_list).set_index('Item').fillna("0 (0%)")
+    cols = sorted([c for c in df_dist_styled.columns if len(str(c)) == 1]) + sorted([c for c in df_dist_styled.columns if len(str(c)) > 1])
+    df_dist_styled = df_dist_styled[cols]
+
     def interpret_distractor(row):
-        effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
+        # Interpretasi tetap berdasarkan apakah ada persentase >= 5% di dalam string
+        effective = [opt for opt, val in row.items() if "(" in str(val) and int(val.split('(')[1].split('%')[0]) >= 5 and opt != "N/A"]
         return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
     
-    df_dist_styled = df_dist[cols].copy()
-    df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols).format("{:.2%}", subset=cols), use_container_width=True)
+    df_dist_styled['Interpretation'] = df_dist_styled.apply(interpret_distractor, axis=1)
+    st.dataframe(df_dist_styled, use_container_width=True)
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
         "Metric": ["Difficulty (d)", "Discrimination (ddi)", "r_pbis", "KR-20", "SEM"],
         "Ideal Range": ["0.30 - 0.70", "≥ 0.30", "≥ Threshold", "≥ 0.70", "Lower is Better"],
-        "Description": [
-            "Moderate level (d) is best for norm-referenced tests.",
-            "Discrimination (ddi) distinguishes between high and low achievers.",
-            "Correlation between item and total test score.",
-            "Internal consistency of the entire test.",
-            "Precision of the scores obtained."
-        ]
+        "Description": ["Moderate level (d) is best.", "Distinguishes high/low achievers.", "Item-total correlation.", "Internal consistency.", "Score precision."]
     }
     df_guide = pd.DataFrame(guide_data)
 
@@ -211,7 +200,6 @@ if student_file and key_file:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
         df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
-        
         workbook = writer.book
         for sheet in writer.sheets.values():
             sheet.set_column('A:Z', 18)
