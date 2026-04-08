@@ -1,5 +1,5 @@
 # ======================================================================
-# ITEM ANALYSIS TOOL - ADVANCED ACADEMIC VERSION (CTT + VALIDATION)
+# ITEM ANALYSIS TOOL - PROFESSIONALLY VALIDATED VERSION
 # ======================================================================
 
 import streamlit as st
@@ -9,208 +9,150 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pointbiserialr
 import io
-import warnings
-warnings.filterwarnings('ignore')
 
-# ======================================================================
 # CONFIG
-# ======================================================================
-st.set_page_config(page_title="Item Analysis Tool", page_icon="📊", layout="wide")
-st.title("📊 ITEM ANALYSIS TOOL (ADVANCED ACADEMIC VERSION)")
-st.markdown("---")
+st.set_page_config(page_title="Academic Item Analysis", page_icon="📈", layout="wide")
+st.title("📈 ADVANCED ITEM ANALYSIS (CTT VALIDATED)")
 
-# ======================================================================
-# SIDEBAR
-# ======================================================================
+# SIDEBAR PARAMETERS
 with st.sidebar:
-    st.header("⚙️ Threshold Parameters")
+    st.header("⚙️ Analysis Settings")
+    group_percent = st.slider("Kelley's Group Grouping (%)", 10, 50, 27)
+    r_threshold = st.number_input("Validity Threshold (r_pbis)", 0.0, 1.0, 0.25)
+    st.info("Standar umum: D > 0.30 & r_pbis > 0.25")
 
-    difficult_threshold = st.number_input("Difficult (<)", 0.0, 1.0, 0.30, 0.05)
-    easy_threshold = st.number_input("Easy (>)", 0.0, 1.0, 0.80, 0.05)
-
-    poor_threshold = st.number_input("D Poor (<)", 0.0, 1.0, 0.20, 0.05)
-    good_threshold = st.number_input("D Good (>=)", 0.0, 1.0, 0.40, 0.05)
-
-    valid_threshold = st.number_input("Validity r_it (>=)", 0.0, 1.0, 0.20, 0.05)
-
-    group_percent = st.slider("Upper/Lower Group (%)", 10, 50, 27)
-
-# ======================================================================
 # FUNCTIONS
-# ======================================================================
-def cronbach_alpha(df_scores):
+def calculate_cronbach_alpha(df_scores):
     k = df_scores.shape[1]
-    if k <= 1:
-        return np.nan
-    item_var = df_scores.var(ddof=1)
+    if k <= 1: return np.nan
+    item_vars = df_scores.var(ddof=1).sum()
     total_var = df_scores.sum(axis=1).var(ddof=1)
-    if total_var == 0:
-        return np.nan
-    return (k / (k-1)) * (1 - (item_var.sum() / total_var))
+    if total_var == 0: return 0
+    return (k / (k - 1)) * (1 - (item_vars / total_var))
 
-def interpret_reliability(val):
-    if np.isnan(val):
-        return "Undefined"
-    elif val >= 0.80:
-        return "Very Good"
-    elif val >= 0.70:
-        return "Good"
-    elif val >= 0.60:
-        return "Fair"
-    else:
-        return "Poor"
-
-def check_dimensionality(df_scores):
-    corr = df_scores.corr()
-    eigenvalues = np.linalg.eigvals(corr)
-    eigenvalues = np.sort(eigenvalues)[::-1]
-    return eigenvalues
-
-def standard_error(p, q, n):
-    return np.sqrt((p*q)/n) if n > 0 else np.nan
-
-# ======================================================================
-# FILE INPUT
-# ======================================================================
-student_file = st.file_uploader("Upload Student Data (CSV)", type=['csv'])
+# FILE UPLOADER
+student_file = st.file_uploader("Upload Student Responses (CSV)", type=['csv'])
 key_file = st.file_uploader("Upload Answer Key (CSV)", type=['csv'])
 
 if student_file and key_file:
-
-    df = pd.read_csv(student_file, dtype=str)
-    df_key = pd.read_csv(key_file, dtype=str)
-
-    item_cols = df.columns[1:]
+    # Load Data
+    df = pd.read_csv(student_file).fillna("N/A")
+    df_key = pd.read_csv(key_file)
+    
+    item_cols = df.columns[1:] # Asumsi kolom 0 adalah ID/Nama
+    answer_key = df_key.iloc[0, 1:].str.upper().str.strip().tolist()
+    
+    # 1. SCORING ENGINE
+    df_scores = pd.DataFrame()
+    for i, col in enumerate(item_cols):
+        df_scores[col] = (df[col].astype(str).str.upper().str.strip() == answer_key[i]).astype(int)
+    
+    total_scores = df_scores.sum(axis=1)
+    df['Total_Score'] = total_scores
     n_students = len(df)
     n_items = len(item_cols)
 
-    answer_key = df_key.iloc[0, 1:].str.upper().str.strip().tolist()
-
-    # ==================================================================
-    # SCORING
-    # ==================================================================
-    df_scores = pd.DataFrame()
-
-    for i, col in enumerate(item_cols):
-        df_scores[col] = (df[col].str.upper().str.strip() == answer_key[i]).astype(int)
-
-    df['total_score'] = df_scores.sum(axis=1)
-
-    # ==================================================================
-    # GROUPING (KELLEY)
-    # ==================================================================
-    df_idx = df.reset_index().rename(columns={'index': 'idx'})
-    df_sorted = df_idx.sort_values('total_score', ascending=False)
-
+    # 2. GROUPING (UPPER/LOWER)
     n_group = max(1, int(np.ceil(n_students * group_percent / 100)))
-
-    upper_idx = df_sorted.head(n_group)['idx']
-    lower_idx = df_sorted.tail(n_group)['idx']
-
-    upper = df.loc[upper_idx]
-    lower = df.loc[lower_idx]
-
-    # ==================================================================
-    # ITEM ANALYSIS
-    # ==================================================================
-    results = []
-    pq_values = []
-
+    df_sorted = df.sort_values('Total_Score', ascending=False)
+    
+    upper_indices = df_sorted.head(n_group).index
+    lower_indices = df_sorted.tail(n_group).index
+    
+    # 3. ITEM STATISTICS CALCULATIONS
+    item_stats = []
     for i, item in enumerate(item_cols):
-
+        # Difficulty Index (p)
         p = df_scores[item].mean()
-        q = 1 - p
-        pq = p * q
-        pq_values.append(pq)
-
-        key = answer_key[i]
-
-        p_upper = (upper[item].str.upper().str.strip() == key).mean()
-        p_lower = (lower[item].str.upper().str.strip() == key).mean()
-
-        d = p_upper - p_lower
-
-        se = standard_error(p, q, n_students)
-
-        total_minus = df['total_score'] - df_scores[item]
-
-        if df_scores[item].var(ddof=1) == 0 or total_minus.var(ddof=1) == 0:
-            r = 0
+        
+        # Discrimination Index (D)
+        p_upper = df_scores.loc[upper_indices, item].mean()
+        p_lower = df_scores.loc[lower_indices, item].mean()
+        d_index = p_upper - p_lower
+        
+        # Point-Biserial Correlation (Validity)
+        # Menggunakan skor total (r_pbis)
+        if df_scores[item].var() == 0:
+            r_pbis = 0
         else:
-            r, _ = pointbiserialr(df_scores[item], total_minus)
+            r_pbis, _ = pointbiserialr(df_scores[item], total_scores)
+            
+        # Standard Error of Measurement for Item
+        se_item = np.sqrt((p * (1 - p)) / n_students)
+        
+        # Alpha if Deleted
+        remaining_df = df_scores.drop(columns=[item])
+        alpha_deleted = calculate_cronbach_alpha(remaining_df)
+        
+        # Interpretation
+        diff_label = "Easy" if p > 0.7 else ("Difficult" if p < 0.3 else "Moderate")
+        disc_label = "Good" if d_index >= 0.4 else ("Fair" if d_index >= 0.2 else "Poor")
+        status = "RETAIN" if (r_pbis >= r_threshold and d_index >= 0.2) else "REVISE/REJECT"
 
-        alpha_del = cronbach_alpha(df_scores.drop(columns=[item]))
+        item_stats.append({
+            "Item": item,
+            "Diff_Index (p)": round(p, 3),
+            "Difficulty": diff_label,
+            "Disc_Index (D)": round(d_index, 3),
+            "Discrimination": disc_label,
+            "r_pbis (Validity)": round(r_pbis, 3),
+            "Alpha_If_Deleted": round(alpha_deleted, 3),
+            "SE_Item": round(se_item, 3),
+            "Decision": status
+        })
 
-        results.append([
-            item, p, q, pq, p_upper, p_lower, d, se, r, alpha_del
-        ])
+    df_results = pd.DataFrame(item_stats)
 
-    df_results = pd.DataFrame(results, columns=[
-        'Item','p','q','pq','p_upper','p_lower','D','SE','r_it','Alpha_if_deleted'
-    ])
+    # 4. RELIABILITY & AGGREGATE STATS
+    # KR-20 formula: (k/(k-1)) * (1 - sum(pq)/var_total)
+    sum_pq = (df_scores.mean() * (1 - df_scores.mean())).sum()
+    var_total = total_scores.var(ddof=1)
+    kr20 = (n_items/(n_items-1)) * (1 - (sum_pq/var_total)) if var_total > 0 else 0
+    sem_total = total_scores.std(ddof=1) * np.sqrt(1 - kr20)
 
-    # ==================================================================
-    # RELIABILITY
-    # ==================================================================
-    total_variance = df['total_score'].var(ddof=1)
-    sum_pq = sum(pq_values)
+    # OUTPUT DISPLAY
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Items", n_items)
+    col2.metric("Samples", n_students)
+    col3.metric("KR-20 Reliability", f"{kr20:.3f}")
+    col4.metric("Mean Score", f"{total_scores.mean():.2f}")
 
-    kr20 = (n_items/(n_items-1)) * (1 - (sum_pq / total_variance)) if total_variance > 0 and n_items > 1 else np.nan
-    alpha = cronbach_alpha(df_scores)
-    sem = df['total_score'].std(ddof=1) * np.sqrt(1 - kr20) if not np.isnan(kr20) else np.nan
-
-    # ==================================================================
-    # DIMENSIONALITY CHECK
-    # ==================================================================
-    eigenvalues = check_dimensionality(df_scores)
-
-    # ==================================================================
-    # REDUNDANCY CHECK
-    # ==================================================================
-    corr_matrix = df_scores.corr()
-    high_corr_pairs = [(corr_matrix.columns[i], corr_matrix.columns[j])
-                       for i in range(len(corr_matrix.columns))
-                       for j in range(i+1, len(corr_matrix.columns))
-                       if abs(corr_matrix.iloc[i,j]) > 0.70]
-
-    # ==================================================================
-    # OUTPUT
-    # ==================================================================
-    st.subheader("📊 Item Statistics")
+    st.divider()
+    
+    st.subheader("📋 Item Analysis Summary Table")
     st.dataframe(df_results, use_container_width=True)
 
-    st.subheader("📈 Reliability")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("KR-20", f"{kr20:.4f}" if not np.isnan(kr20) else "Undefined")
-    col2.metric("Cronbach Alpha", f"{alpha:.4f}" if not np.isnan(alpha) else "Undefined")
-    col3.metric("SEM", f"{sem:.4f}" if not np.isnan(sem) else "Undefined")
-    st.write("Interpretation:", interpret_reliability(alpha))
+    # 5. VISUALIZATIONS
+    st.subheader("📊 Visual Distribution")
+    v_col1, v_col2 = st.columns(2)
+    
+    with v_col1:
+        fig1, ax1 = plt.subplots()
+        sns.histplot(total_scores, kde=True, color='skyblue', ax=ax1)
+        ax1.set_title("Score Distribution (Normality)")
+        st.pyplot(fig1)
+        
+    with v_col2:
+        fig2, ax2 = plt.subplots()
+        sns.scatterplot(data=df_results, x="Diff_Index (p)", y="Disc_Index (D)", hue="Decision", ax=ax2)
+        ax2.axhline(0.2, ls='--', color='red', alpha=0.5)
+        ax2.set_title("Difficulty vs Discrimination")
+        st.pyplot(fig2)
 
-    st.subheader("🧠 Dimensionality Check (Eigenvalues)")
-    st.write("Eigenvalues:", np.round(eigenvalues, 3))
-    if eigenvalues[1] > 0 and eigenvalues[0]/eigenvalues[1] > 3:
-        st.success("Likely Unidimensional")
-    else:
-        st.warning("Possible Multidimensional Structure")
-
-    st.subheader("🔁 Item Redundancy (r > 0.70)")
-    if high_corr_pairs:
-        for pair in high_corr_pairs:
-            st.write(pair)
-    else:
-        st.write("No high redundancy detected")
-
-    st.subheader("📊 Inter-Item Correlation")
-    fig, ax = plt.subplots(figsize=(8,6))
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0)
-    st.pyplot(fig)
-
-    # ==================================================================
-    # DOWNLOAD
-    # ==================================================================
+    # 6. EXPORT
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_results.to_excel(writer, sheet_name='Item Stats', index=False)
-        pd.DataFrame({'KR20':[kr20], 'Alpha':[alpha], 'SEM':[sem]}).to_excel(writer, sheet_name='Reliability', index=False)
-
-    st.download_button("📥 Download Excel", data=output.getvalue(), file_name="analysis.xlsx")
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_results.to_excel(writer, index=False, sheet_name='Analysis_Results')
+        # Add summary sheet
+        summary_df = pd.DataFrame({
+            "Metric": ["KR-20", "SEM", "N Items", "N Students", "Mean"],
+            "Value": [kr20, sem_total, n_items, n_students, total_scores.mean()]
+        })
+        summary_df.to_excel(writer, index=False, sheet_name='Reliability_Summary')
+    
+    st.download_button(
+        label="📥 Download Full Report (Excel)",
+        data=output.getvalue(),
+        file_name="Item_Analysis_Report.xlsx",
+        mime="application/vnd.ms-excel"
+    )
