@@ -77,12 +77,15 @@ if student_file and key_file:
 
     # 4. RIGOROUS CALCULATION
     results = []
-    for i, item in enumerate(item_cols):
-        p = df_scores[item].mean()
-        q = 1 - p
-        p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
-        d_val = p_up - p_lo 
-        r_pb, _ = pointbiserialr(df_scores[item], total_scores) if df_scores[item].var() != 0 else (0,0)
+for i, item in enumerate(item_cols):
+    p = df_scores[item].mean()
+    q = 1 - p
+    p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
+    d_val = p_up - p_lo 
+    
+    # PERBAIKAN FATAL: Menggunakan Corrected Total Score (Total - Skor Item itu sendiri)
+    corrected_total = total_scores - df_scores[item]
+    r_pb, _ = pointbiserialr(df_scores[item], corrected_total) if df_scores[item].var() != 0 else (0,0)
 
         # Descriptive Logic
         p_desc = "Easy" if p > 0.7 else "Difficult" if p < 0.3 else "Moderate"
