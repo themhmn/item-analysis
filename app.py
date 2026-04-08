@@ -188,7 +188,12 @@ if student_file and key_file:
         df_dist_styled[col] = df_dist_styled[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
     
     df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-    st.dataframe(df_dist_styled, use_container_width=True)
+    st.dataframe(
+        df_dist_styled.style
+        .background_gradient(cmap='YlGn', subset=cols)
+        .format("{:.4f}", subset=cols), 
+        use_container_width=True
+    )
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
