@@ -22,7 +22,7 @@ st.markdown("""
 st.title("🛡️ RIGOROUS ITEM ANALYSIS TOOL (CTT)")
 st.write("Full Classical Test Theory Suite: Methodologically validated metrics for educational research.")
 
-# SIDEBAR: THE COMPREHENSIVE LEGEND (RESTORED TO ORIGINAL)
+# SIDEBAR: THE COMPREHENSIVE LEGEND
 with st.sidebar:
     st.header("📊 Methodological Legend")
     
@@ -84,10 +84,12 @@ if student_file and key_file:
         d_val = p_up - p_lo 
         r_pb, _ = pointbiserialr(df_scores[item], total_scores) if df_scores[item].var() != 0 else (0,0)
 
+        # Descriptive Logic
         p_desc = "Easy" if p > 0.7 else "Difficult" if p < 0.3 else "Moderate"
         d_desc = "Excellent" if d_val >= 0.4 else "Good" if d_val >= 0.3 else "Fair" if d_val >= 0.2 else "Poor"
         r_desc = "Valid" if r_pb >= validity_limit else "Invalid"
         
+        # Decision Logic
         if r_pb >= validity_limit and d_val >= 0.3:
             decision = "RETAIN"
         elif r_pb >= 0.2 and d_val >= 0.2:
@@ -125,29 +127,43 @@ if student_file and key_file:
     m5.metric("KR-20 Reliability", f"{kr20:.3f}")
     m6.metric("SEM (Error)", f"{sem:.3f}")
 
-    # 6. FULL STATISTICAL STYLING
+    # 6. FULL STATISTICAL STYLING (TRAFFIC LIGHT SYSTEM)
     def apply_full_styling(row):
         styles = [''] * len(row)
+        
+        # Difficulty Styling (p & d)
         dif_color = '#ccffcc' if row['p'] > 0.7 else '#ffcccc' if row['p'] < 0.3 else '#fff2cc'
-        styles[1] = f'background-color: {dif_color}; color: black'
-        styles[2] = f'background-color: {dif_color}; color: black'
-        styles[6] = f'background-color: {dif_color}; color: black'
+        styles[1] = f'background-color: {dif_color}; color: black' # p
+        styles[2] = f'background-color: {dif_color}; color: black' # p_Eval
+        styles[6] = f'background-color: {dif_color}; color: black' # d (Difficulty)
+
+        # Discrimination Styling (ddi)
         if row['ddi'] >= 0.4: dis_color, txt = '#2ecc71', 'white'
         elif row['ddi'] >= 0.3: dis_color, txt = '#3498db', 'white'
         elif row['ddi'] >= 0.2: dis_color, txt = '#f1c40f', 'black'
         else: dis_color, txt = '#e74c3c', 'white'
-        styles[5] = f'background-color: {dis_color}; color: {txt}'
-        styles[7] = f'background-color: {dis_color}; color: {txt}'
+        
+        styles[5] = f'background-color: {dis_color}; color: {txt}' # ddi
+        styles[7] = f'background-color: {dis_color}; color: {txt}' # d_Eval (Discrimination Desc)
+
+        # Validity Styling (r_pbis)
         val_bg = '#ccffcc' if row['r_pbis'] >= validity_limit else '#ffcccc'
-        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold'
-        styles[9] = f'background-color: {val_bg}; color: black'
+        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold' # r_pbis
+        styles[9] = f'background-color: {val_bg}; color: black' # r_Eval
+
+        # Decision Styling
         if row['DECISION'] == "RETAIN": styles[10] = 'background-color: #27ae60; color: white; font-weight: bold'
         elif row['DECISION'] == "REVISE": styles[10] = 'background-color: #f39c12; color: white'
         else: styles[10] = 'background-color: #c0392b; color: white'
+
         return styles
 
     st.subheader("📋 Comprehensive Item Statistics Matrix & Validity Report")
-    st.dataframe(df_res.style.apply(apply_full_styling, axis=1).format("{:.3f}", subset=["p", "q", "pq", "ddi", "d", "r_pbis"]), use_container_width=True)
+    st.dataframe(
+        df_res.style.apply(apply_full_styling, axis=1)
+        .format("{:.3f}", subset=["p", "q", "pq", "ddi", "d", "r_pbis"]), 
+        use_container_width=True
+    )
 
     # 7. AUTOMATIC REPORT
     st.divider()
@@ -161,7 +177,7 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS (COLOR RESTORED & LEGEND PROTECTED)
+    # 8. DISTRACTOR ANALYSIS
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
@@ -171,18 +187,9 @@ if student_file and key_file:
         effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
         return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
     
-    # Menghitung interpretasi sebelum format diubah menjadi string
     df_dist_styled = df_dist[cols].copy()
     df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-
-    # Teknik Styler: Menggunakan format lambda untuk mengubah tampilan tanpa mengubah tipe data asli
-    # Ini menjamin background_gradient bisa membaca angka aslinya
-    st.dataframe(
-        df_dist_styled.style
-        .background_gradient(cmap='YlGn', subset=cols)
-        .format(lambda x: f"{x:.4f} ({x:.2%})", subset=cols), 
-        use_container_width=True
-    )
+    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols).format("{:.2%}", subset=cols), use_container_width=True)
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
@@ -202,15 +209,12 @@ if student_file and key_file:
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
-        # Untuk Excel, kita harus simpan versi teks agar format gabungannya terbawa
-        df_dist_export = df_dist[cols].applymap(lambda x: f"{x:.4f} ({x:.2%})")
-        df_dist_export['Interpretation'] = df_dist_styled['Interpretation']
-        df_dist_export.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
+        df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
         
         workbook = writer.book
         for sheet in writer.sheets.values():
-            sheet.set_column('A:Z', 22)
+            sheet.set_column('A:Z', 18)
             
     st.download_button(
         label="📥 Download Full Report",
