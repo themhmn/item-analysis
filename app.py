@@ -78,24 +78,26 @@ if student_file and key_file:
     # 4. RIGOROUS CALCULATION
     results = []
     for i, item in enumerate(item_cols):
-        p = df_scores[item].mean()
+        # Difficulty
+        p = df_scores[item].mean()        # proporsi benar
         q = 1 - p
-        # Discrimination: Kelley’s D
-        p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
-        d_val = p_up - p_lo 
+        # Discrimination (Kelley)
+        p_up = df_scores.loc[up_idx, item].mean()
+        p_lo = df_scores.loc[lo_idx, item].mean()
+        ddi = p_up - p_lo
         # Corrected item-total correlation
         corrected_total = total_scores - df_scores[item]
         r_pb, _ = pointbiserialr(df_scores[item], corrected_total) if df_scores[item].var() != 0 else (0,0)
 
         # Descriptive Logic
         p_desc = "Easy" if p > 0.7 else "Difficult" if p < 0.3 else "Moderate"
-        d_desc = "Excellent" if d_val >= 0.4 else "Good" if d_val >= 0.3 else "Fair" if d_val >= 0.2 else "Poor"
+        d_desc = "Excellent" if ddi >= 0.4 else "Good" if ddi >= 0.3 else "Fair" if ddi >= 0.2 else "Poor"
         r_desc = "Valid" if r_pb >= validity_limit else "Invalid"
         
-        # Decision Logic (adjusted to CTT standards)
-        if r_pb >= 0.3 and d_val >= 0.3:
+        # Decision Logic
+        if r_pb >= validity_limit and ddi >= 0.3:
             decision = "RETAIN"
-        elif r_pb >= 0.2 and d_val >= 0.2:
+        elif r_pb >= 0.2 and ddi >= 0.2:
             decision = "REVISE"
         else:
             decision = "REJECT"
@@ -104,8 +106,8 @@ if student_file and key_file:
             "Item": item, 
             "p": p, "p_Eval": p_desc, 
             "q": q, "pq": p*q,
-            "ddi": d_val, 
-            "d": d_val,  # <-- diperbaiki, kini kolom 'd' = discrimination index
+            "ddi": ddi, 
+            "d": p,         # difficulty index
             "d_Eval": d_desc, 
             "r_pbis": r_pb, "r_Eval": r_desc, 
             "DECISION": decision
@@ -173,31 +175,20 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS (FINAL STABLE VERSION)
+    # 8. DISTRACTOR ANALYSIS
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
     
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     
-    # 1. Simpan data angka murni untuk perhitungan warna
     df_dist_num = df_dist[cols].copy()
-    
-    # 2. Buat versi teks untuk Tampilan Web & Excel
     df_dist_final = df_dist[cols].copy()
     for col in cols:
         df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
     
-    # 3. Interpretasi distraktor
     df_dist_final['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([opt for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
-
-    # 4. FUNGSI PEWARNAAN MANUAL (AGAR TIDAK ERROR LAGI)
-    def color_distractor(text_df):
-        color_df = pd.DataFrame('', index=text_df.index, columns=text_df.columns)
-        for col in cols:
-            return df_dist_num.style.background_gradient(cmap='YlGn', subset=cols).data
-        return color_df
-
+    
     st.dataframe(
         df_dist_num.style
         .background_gradient(cmap='YlGn', subset=cols)
@@ -205,7 +196,7 @@ if student_file and key_file:
         use_container_width=True
     )
 
-    # 9. PANDUAN MEMBACA DATA (GUIDE)
+    # 9. PANDUAN MEMBACA DATA
     guide_data = {
         "Metric": ["Difficulty (d)", "Discrimination (ddi)", "r_pbis", "KR-20", "SEM"],
         "Ideal Range": ["0.30 - 0.70", "≥ 0.30", "≥ Threshold", "≥ 0.70", "Lower is Better"],
