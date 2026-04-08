@@ -171,25 +171,24 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS (FIXED: COLOR + PERCENTAGE)
+    # 8. DISTRACTOR ANALYSIS (MODIFIED SECTION)
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
-    
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
-    
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     
+    def interpret_distractor(row):
+        effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
+        return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
+    
     df_dist_styled = df_dist[cols].copy()
-    df_dist_styled['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([opt for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
-
-    # INI KUNCINYA: Menggunakan f-string di dalam .format() 
-    # agar warna tetap muncul tapi tampilan ada persentasenya.
-    st.dataframe(
-        df_dist_styled.style
-        .background_gradient(cmap='YlGn', subset=cols)
-        .format(lambda x: f"{x:.4f} ({x:.2%})", subset=cols), 
-        use_container_width=True
-    )
+    
+    # Apply combined format: 0.1000 (10.00%)
+    for col in cols:
+        df_dist_styled[col] = df_dist_styled[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
+    
+    df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
+    st.dataframe(df_dist_styled, use_container_width=True)
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
