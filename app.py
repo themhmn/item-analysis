@@ -37,10 +37,10 @@ with st.sidebar:
     with st.expander("2. Discrimination (ddi/d)", expanded=True):
         st.write("""
         The ability to distinguish between high and low-performing students.
-        - **Excellent (ddi ≥ 0.40):** 🟢
+        - **Excellent (d ≥ 0.40):** 🟢
         - **Good (0.30 - 0.39):** 🔵
         - **Fair (0.20 - 0.29):** 🟡 (Revision Required)
-        - **Poor (ddi < 0.20):** 🔴 (Reject/Discard)
+        - **Poor (d < 0.20):** 🔴 (Reject/Discard)
         """)
 
     with st.expander("3. Validity (r_pbis)", expanded=True):
@@ -90,13 +90,13 @@ if student_file and key_file:
     df_sorted = df.sort_values('Total_Score', ascending=False)
     up_idx, lo_idx = df_sorted.head(n_group).index, df_sorted.tail(n_group).index
 
-    # 4. RIGOROUS CALCULATION (D & DDI CORRECTED)
+    # 4. RIGOROUS CALCULATION
     results = []
     for i, item in enumerate(item_cols):
         p = df_scores[item].mean()
         q = 1 - p
         p_up, p_lo = df_scores.loc[up_idx, item].mean(), df_scores.loc[lo_idx, item].mean()
-        d_val = p_up - p_lo # Ini adalah Daya Beda
+        d_val = p_up - p_lo
         r_pb, _ = pointbiserialr(df_scores[item], total_scores) if df_scores[item].var() != 0 else (0,0)
 
         # Descriptive Logic
@@ -116,9 +116,7 @@ if student_file and key_file:
             "Item": item, 
             "p": p, "p_Eval": p_desc, 
             "q": q, "pq": p*q,
-            "ddi": d_val,      # ddi = Discrimination Index (Pu - Pl)
-            "d": p,            # d = Difficulty Index (R/T) - SEKARANG BENAR
-            "d_Eval": d_desc, 
+            "ddi": d_val, "d": d_val, "d_Eval": d_desc, 
             "r_pbis": r_pb, "r_Eval": r_desc, 
             "DECISION": decision
         })
@@ -148,19 +146,15 @@ if student_file and key_file:
         if row['p'] < 0.3: styles[1] = 'background-color: #ffcccc'
         elif row['p'] > 0.7: styles[1] = 'background-color: #ccffcc'
         else: styles[1] = 'background-color: #fff2cc'
-        
-        # Style berdasarkan ddi (Discrimination)
         if row['ddi'] >= 0.4: 
             styles[5] = 'background-color: #2ecc71; color: white'
+            styles[6] = 'background-color: #2ecc71; color: white'
         elif row['ddi'] < 0.2: 
             styles[5] = 'background-color: #e74c3c; color: white'
+            styles[6] = 'background-color: #e74c3c; color: white'
         else: 
             styles[5] = 'background-color: #f1c40f'
-            
-        # Style kolom d (sekarang mengikuti p/Difficulty)
-        if row['d'] < 0.3: styles[6] = 'background-color: #ffcccc'
-        elif row['d'] > 0.7: styles[6] = 'background-color: #ccffcc'
-        
+            styles[6] = 'background-color: #f1c40f'
         if row['r_pbis'] < validity_limit:
             styles[8] = 'color: #e74c3c; font-weight: bold'
             styles[9] = 'background-color: #ffcccc'
@@ -183,35 +177,29 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS (MODIFIED PORTION)
+    # 8. DISTRACTOR ANALYSIS
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     
+    # Menambahkan interpretasi distraktor
     def interpret_distractor(row):
+        # Distraktor dianggap efektif jika dipilih oleh minimal 5% peserta
         effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
         return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
     
     df_dist_styled = df_dist[cols].copy()
-    v_asli = df_dist_styled.values # Data asli untuk gradasi warna
-    
-    # Gabungkan format Angka (Persentase)
-    for col in cols:
-        df_dist_styled[col] = df_dist_styled[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
-    
     df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-    
-    # Render web dengan gmap data asli agar tidak crash
-    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols, gmap=v_asli), use_container_width=True)
+    st.dataframe(df_dist_styled.style.background_gradient(cmap='YlGn', subset=cols).format("{:.2%}", subset=cols), use_container_width=True)
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
-        "Metric": ["Difficulty (d)", "Discrimination (ddi)", "r_pbis", "KR-20", "SEM"],
+        "Metric": ["Difficulty (p)", "Discrimination (d)", "r_pbis", "KR-20", "SEM"],
         "Ideal Range": ["0.30 - 0.70", "≥ 0.30", "≥ Threshold", "≥ 0.70", "Lower is Better"],
         "Description": [
-            "Moderate level (d) is best for norm-referenced tests.",
-            "Discrimination (ddi) distinguishes between high and low achievers.",
+            "Moderate level is best for norm-referenced tests.",
+            "Distinguishes between high and low achievers.",
             "Correlation between item and total test score.",
             "Internal consistency of the entire test.",
             "Precision of the scores obtained."
@@ -219,19 +207,21 @@ if student_file and key_file:
     }
     df_guide = pd.DataFrame(guide_data)
 
-    # EXPORT
+    # EXPORT WITH 3 SHEETS
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
         df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
         
+        # Formatting Excel
         workbook = writer.book
+        header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
         for sheet in writer.sheets.values():
             sheet.set_column('A:Z', 18)
             
     st.download_button(
-        label="📥 Download Full Report",
+        label="📥 Download Full Academic Report (3 Sheets)",
         data=buf.getvalue(),
         file_name="Complete_Item_Analysis_Report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
