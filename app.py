@@ -24,7 +24,7 @@ st.write("Full Classical Test Theory Suite: Methodologically validated metrics f
 
 # SIDEBAR: THE COMPREHENSIVE LEGEND
 with st.sidebar:
-    st.header("📊 Methodological Legend")
+    st.header("📊 Methodological Legend - Scripted by Muhaimin Abdullah")
     
     with st.expander("1. Difficulty Index (p)", expanded=True):
         st.write("""
@@ -221,8 +221,8 @@ if student_file and key_file:
             sheet.set_column('A:Z', 18)
             
     st.download_button(
-        label="📥 Download Full Academic Report (3 Sheets)",
+        label="📥 Download Full Report",
         data=buf.getvalue(),
-        file_name="Complete_Item_Analysis_Report.xlsx",
+        file_name="Complete_Item_Analysis_Report_by_Muhaimin_Abdullah.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
