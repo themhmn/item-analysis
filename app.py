@@ -171,24 +171,28 @@ if student_file and key_file:
         st.write("**Standard Error of Measurement (SEM):**")
         st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
 
-    # 8. DISTRACTOR ANALYSIS (MODIFIED SECTION)
+    # 8. DISTRACTOR ANALYSIS (FIXED ERROR)
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
+    
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     
-    def interpret_distractor(row):
-        effective = [opt for opt, val in row.items() if val >= 0.05 and opt != "N/A"]
-        return f"Effective Options: {', '.join(effective)}" if effective else "No effective distractors"
+    # Simpan data angka murni untuk menentukan warna (gradient)
+    df_dist_num = df_dist[cols].copy()
     
-    df_dist_styled = df_dist[cols].copy()
-    
-    # Apply combined format: 0.1000 (10.00%)
+    # Buat versi teks untuk tampilan & Excel
+    df_dist_final = df_dist[cols].copy()
     for col in cols:
-        df_dist_styled[col] = df_dist_styled[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
+        df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
     
-    df_dist_styled['Interpretation'] = df_dist[cols].apply(interpret_distractor, axis=1)
-    st.dataframe(df_dist_styled, use_container_width=True)
+    df_dist_final['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([opt for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
+
+    # TAMPILAN WEB: Menggunakan gyler=df_dist_num agar warna muncul pada data teks
+    st.dataframe(
+        df_dist_final.style.background_gradient(cmap='YlGn', subset=cols, axis=None, gyler=df_dist_num),
+        use_container_width=True
+    )
 
     # 9. PANDUAN MEMBACA DATA (GUIDE)
     guide_data = {
@@ -208,7 +212,10 @@ if student_file and key_file:
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
-        df_dist_styled.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
+        
+        # PAKAI df_dist_final AGAR PERSENTASE MUNCUL DI EXCEL
+        df_dist_final.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
+        
         df_guide.to_excel(writer, index=False, sheet_name='Reading_Guide')
         
         workbook = writer.book
