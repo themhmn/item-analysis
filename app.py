@@ -33,8 +33,8 @@ with st.sidebar:
 
     with st.expander("2. Discrimination (d/DDI)", expanded=True):
         st.write("""
-        - **d (Discrimination Index):** Fokus pada kunci jawaban.
-        - **DDI (Distractor Discrimination):** Fokus pada pengecoh terburuk.
+        - **d (Discrimination Index):** Focus on the Answer Key.
+        - **DDI (Distractor Discrimination):** Focus on the worst distractor.
         - **Excellent (≥ 0.40):** 🟢
         - **Good (0.30 - 0.39):** 🔵
         - **Fair (0.20 - 0.29):** 🟡
@@ -73,12 +73,12 @@ if student_file and key_file:
     for i, item in enumerate(item_cols):
         p = df_scores[item].mean()
         q = 1 - p
+        item_var = df_scores[item].var(ddof=1)
 
         p_up = df_scores.loc[up_idx, item].mean()
         p_lo = df_scores.loc[lo_idx, item].mean()
         d_val = p_up - p_lo
 
-        # --- PERBAIKAN RUMUS DDI DI SINI ---
         distractors = [opt for opt in df[item].unique() if opt != answer_key[i] and opt != "N/A"]
         ddi_vals = []
         for opt in distractors:
@@ -86,9 +86,7 @@ if student_file and key_file:
             l_opt = (df.loc[lo_idx, item].astype(str).str.upper().str.strip() == opt).mean()
             ddi_vals.append(u_opt - l_opt)
         
-        # Mengambil nilai tertinggi (max) untuk mendeteksi pengecoh yang paling menyesatkan
         ddi_final = max(ddi_vals) if ddi_vals else 0
-        # ----------------------------------
 
         corrected_total = total_scores - df_scores[item]
         r_pb, _ = pointbiserialr(df_scores[item], corrected_total) if df_scores[item].var() != 0 else (0,0)
@@ -102,28 +100,34 @@ if student_file and key_file:
         else: decision = "REJECT"
 
         results.append({
-            "Item": item, "p": p, "p_Eval": p_desc, "q": q, "pq": p*q,
+            "Item": item, "p": p, "p_Eval": p_desc, "q": q, "pq": p*q, "Var": item_var,
             "d": d_val, "d_Eval": d_desc, "DDI": ddi_final, 
             "r_pbis": r_pb, "r_Eval": r_desc, "DECISION": decision
         })
 
     df_res = pd.DataFrame(results)
 
-    # 5. TEST-LEVEL STATISTICS
+    # 5. TEST-LEVEL STATISTICS (KR-20 & CRONBACH ALPHA)
     mean_score = total_scores.mean()
     std_score = total_scores.std(ddof=1)
     var_total = total_scores.var(ddof=1)
+    
+    # KR-20 for dichotomous data
     kr20 = (n_items/(n_items-1)) * (1 - (df_res["pq"].sum()/var_total)) if var_total > 0 else 0
+    # Cronbach's Alpha (General form)
+    alpha = (n_items/(n_items-1)) * (1 - (df_res["Var"].sum()/var_total)) if var_total > 0 else 0
+    
     sem = std_score * np.sqrt(1 - kr20)
 
     st.divider()
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
     m1.metric("Students (N)", n_students)
     m2.metric("Items (k)", n_items)
     m3.metric("Mean Score", f"{mean_score:.2f}")
     m4.metric("Std. Deviation", f"{std_score:.2f}")
-    m5.metric("KR-20 Reliability", f"{kr20:.3f}")
-    m6.metric("SEM (Error)", f"{sem:.3f}")
+    m5.metric("KR-20", f"{kr20:.3f}")
+    m6.metric("Alpha", f"{alpha:.3f}")
+    m7.metric("SEM (Error)", f"{sem:.3f}")
 
     # 6. FULL STYLING
     def apply_full_styling(row):
@@ -136,34 +140,40 @@ if student_file and key_file:
         elif row['d'] >= 0.2: dis_color, txt = '#f1c40f', 'black'
         else: dis_color, txt = '#e74c3c', 'white'
         
-        styles[5] = styles[6] = styles[7] = f'background-color: {dis_color}; color: {txt}'
+        styles[6] = styles[7] = styles[8] = f'background-color: {dis_color}; color: {txt}'
         
         val_bg = '#ccffcc' if row['r_pbis'] >= validity_limit else '#ffcccc'
-        styles[8] = f'background-color: {val_bg}; color: black; font-weight: bold'
-        styles[9] = f'background-color: {val_bg}; color: black'
+        styles[9] = f'background-color: {val_bg}; color: black; font-weight: bold'
+        styles[10] = f'background-color: {val_bg}; color: black'
         
-        if row['DECISION'] == "RETAIN": styles[10] = 'background-color: #27ae60; color: white; font-weight: bold'
-        elif row['DECISION'] == "REVISE": styles[10] = 'background-color: #f39c12; color: white'
-        else: styles[10] = 'background-color: #c0392b; color: white'
+        if row['DECISION'] == "RETAIN": styles[11] = 'background-color: #27ae60; color: white; font-weight: bold'
+        elif row['DECISION'] == "REVISE": styles[11] = 'background-color: #f39c12; color: white'
+        else: styles[11] = 'background-color: #c0392b; color: white'
         return styles
 
     st.subheader("📋 Comprehensive Item Statistics Matrix & Validity Report")
     st.dataframe(
         df_res.style.apply(apply_full_styling, axis=1)
-        .format("{:.3f}", subset=["p", "q", "pq", "d", "DDI", "r_pbis"]), 
+        .format("{:.3f}", subset=["p", "q", "pq", "Var", "d", "DDI", "r_pbis"]), 
         use_container_width=True
     )
 
     st.divider()
     st.header("📝 Methodological Interpretation")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
-        st.write("**Reliability Analysis:**")
-        if kr20 >= 0.7: st.success(f"High Reliability ({kr20:.3f}). Instrument is consistent.")
-        else: st.error(f"Low Reliability ({kr20:.3f}). Caution: Scores may be unstable.")
+        st.write("**Reliability (KR-20 & Alpha):**")
+        reliability = max(kr20, alpha)
+        if reliability >= 0.9: st.success(f"Excellent ({reliability:.3f}). Extremely consistent.")
+        elif reliability >= 0.7: st.success(f"High Reliability ({reliability:.3f}). Instrument is consistent.")
+        elif reliability >= 0.6: st.warning(f"Acceptable ({reliability:.3f}). Consider adding more items.")
+        else: st.error(f"Low Reliability ({reliability:.3f}). Scores are unstable.")
     with c2:
-        st.write("**Standard Error of Measurement (SEM):**")
-        st.info(f"SEM is {sem:.3f}. This figure indicates the range of fluctuation in students' true scores.")
+        st.write("**Alpha vs KR-20 Note:**")
+        st.info("Since your data is dichotomous (0/1), KR-20 and Alpha should be identical. Alpha is included here for psychometric verification.")
+    with c3:
+        st.write("**SEM (Standard Error):**")
+        st.info(f"SEM is {sem:.3f}. This indicates the range of fluctuation in students' true scores.")
 
     # 8. DISTRACTOR ANALYSIS
     st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
