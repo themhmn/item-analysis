@@ -55,6 +55,7 @@ if student_file and key_file:
     df = pd.read_csv(student_file).fillna("N/A")
     df_key = pd.read_csv(key_file)
     item_cols = df.columns[1:] 
+    id_col_name = df.columns[0]
     answer_key = df_key.iloc[0, 1:].astype(str).str.upper().str.strip().tolist()
     
     df_scores = pd.DataFrame()
@@ -65,8 +66,19 @@ if student_file and key_file:
     df['Total_Score'] = total_scores
     n_students, n_items = len(df), len(item_cols)
 
+    # GATHER GROUP DATA
     n_group = max(1, int(np.ceil(n_students * group_percent / 100)))
-    df_sorted = df.sort_values('Total_Score', ascending=False)
+    df_sorted = df.sort_values('Total_Score', ascending=False).copy()
+    
+    # Create Rank and Group Marker
+    df_sorted['Rank'] = range(1, n_students + 1)
+    df_sorted['Group'] = 'Middle'
+    df_sorted.iloc[:n_group, df_sorted.columns.get_loc('Group')] = 'Upper'
+    df_sorted.iloc[-n_group:, df_sorted.columns.get_loc('Group')] = 'Lower'
+    
+    # Ranking Table Summary
+    df_ranking = df_sorted[[id_col_name, 'Total_Score', 'Rank', 'Group']].copy()
+
     up_idx, lo_idx = df_sorted.head(n_group).index, df_sorted.tail(n_group).index
 
     results = []
@@ -74,7 +86,6 @@ if student_file and key_file:
         p = df_scores[item].mean()
         q = 1 - p
         pq = p * q
-        # FORCE: Population variance (ddof=0) for theoretical consistency
         item_var = df_scores[item].var(ddof=0)
 
         p_up = df_scores.loc[up_idx, item].mean()
@@ -109,11 +120,10 @@ if student_file and key_file:
 
     df_res = pd.DataFrame(results)
 
-    # 5. TEST-LEVEL STATISTICS (FIXED SYNCHRONIZATION)
+    # METRICS
     mean_score = total_scores.mean()
     var_total = total_scores.var(ddof=0)
     std_score = np.sqrt(var_total)
-    
     kr20 = (n_items/(n_items-1)) * (1 - (df_res["pq"].sum()/var_total)) if var_total > 0 else 0
     alpha = (n_items/(n_items-1)) * (1 - (df_res["Var"].sum()/var_total)) if var_total > 0 else 0
     sem = std_score * np.sqrt(1 - kr20)
@@ -128,84 +138,91 @@ if student_file and key_file:
     m6.metric("Alpha", f"{alpha:.4f}")
     m7.metric("SEM (Error)", f"{sem:.4f}")
 
-    # 6. STYLING FUNCTION
-    def apply_full_styling(row):
+    # --- DESCRIPTIVE INTERPRETATION (WEB OUTPUT) ---
+    st.divider()
+    st.header("📝 Methodological Interpretation")
+    
+    reliability_desc = "Excellent" if kr20 >= 0.9 else "High" if kr20 >= 0.8 else "Acceptable" if kr20 >= 0.7 else "Low"
+    
+    col_desc1, col_desc2 = st.columns(2)
+    with col_desc1:
+        st.subheader("Reliability Analysis")
+        st.write(f"**Status:** {reliability_desc}")
+        st.write(f"**Coefficient (KR-20/Alpha):** {kr20:.4f}")
+        st.write("**Note:** Calculation uses Population Variance (ddof=0). For dichotomous items, KR-20 and Cronbach's Alpha yield identical results.")
+    
+    with col_desc2:
+        st.subheader("Measurement Precision")
+        st.write(f"**Standard Error of Measurement (SEM):** {sem:.4f}")
+        st.write("**Interpretation:** This value indicates the standard deviation of errors of measurement. Student true scores are estimated to fluctuate within this range.")
+
+    # --- ITEM MATRIX ---
+    st.subheader("📋 Comprehensive Item Statistics Matrix")
+    def apply_item_styling(row):
         styles = [''] * len(row)
         dif_color = '#ccffcc' if row['p'] > 0.7 else '#ffcccc' if row['p'] < 0.3 else '#fff2cc'
         styles[1] = styles[2] = f'background-color: {dif_color}; color: black'
-        
         if row['d'] >= 0.4: dis_color, txt = '#2ecc71', 'white'
         elif row['d'] >= 0.3: dis_color, txt = '#3498db', 'white'
         elif row['d'] >= 0.2: dis_color, txt = '#f1c40f', 'black'
         else: dis_color, txt = '#e74c3c', 'white'
-        
         styles[6] = styles[7] = styles[8] = f'background-color: {dis_color}; color: {txt}'
-        
         val_bg = '#ccffcc' if row['r_pbis'] >= validity_limit else '#ffcccc'
         styles[9] = f'background-color: {val_bg}; color: black; font-weight: bold'
         styles[10] = f'background-color: {val_bg}; color: black'
-        
         if row['DECISION'] == "RETAIN": styles[11] = 'background-color: #27ae60; color: white; font-weight: bold'
         elif row['DECISION'] == "REVISE": styles[11] = 'background-color: #f39c12; color: white'
         else: styles[11] = 'background-color: #c0392b; color: white'
         return styles
 
-    st.subheader("📋 Comprehensive Item Statistics Matrix & Validity Report")
-    st.dataframe(
-        df_res.style.apply(apply_full_styling, axis=1)
-        .format("{:.4f}", subset=["p", "q", "pq", "Var", "d", "DDI", "r_pbis"]), 
-        use_container_width=True
-    )
+    st.dataframe(df_res.style.apply(apply_item_styling, axis=1).format("{:.4f}", subset=["p", "q", "pq", "Var", "d", "DDI", "r_pbis"]), use_container_width=True)
 
+    # --- RANKING TABLE ---
+    st.subheader("🏆 Student Score Ranking & Grouping")
+    def apply_rank_styling(row):
+        style = [''] * len(row)
+        if row['Group'] == 'Upper': bg_color = '#d4edda'
+        elif row['Group'] == 'Lower': bg_color = '#f8d7da'
+        else: bg_color = 'white'
+        return [f'background-color: {bg_color}; color: black'] * len(row)
+
+    st.dataframe(df_ranking.style.apply(apply_rank_styling, axis=1), use_container_width=True)
+
+    # --- DISTRACTORS ---
     st.divider()
-    st.header("📝 Methodological Interpretation")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.write("**Reliability Status:**")
-        reliability = kr20
-        if reliability >= 0.9: st.success(f"Excellent ({reliability:.4f}).")
-        elif reliability >= 0.7: st.success(f"High Reliability ({reliability:.4f}).")
-        elif reliability >= 0.6: st.warning(f"Acceptable ({reliability:.4f}).")
-        else: st.error(f"Low Reliability ({reliability:.4f}).")
-    with c2:
-        st.write("**Mathematical Note:**")
-        st.info("KR-20 and Cronbach's Alpha are identical here because the analysis uses Population Variance (ddof=0).")
-    with c3:
-        st.write("**SEM (Standard Error):**")
-        st.info(f"SEM is {sem:.4f}. Fluctuation range of true scores.")
-
-    # 8. DISTRACTOR ANALYSIS
-    st.subheader("🎯 Distractor Effectiveness (Option Frequency)")
+    st.subheader("🎯 Distractor Effectiveness")
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
-    df_dist_num = df_dist[cols].copy()
     df_dist_final = df_dist[cols].copy()
-    for col in cols:
-        df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
-    df_dist_final['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([opt for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
+    for col in cols: df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
+    
+    df_dist_final['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([str(opt) for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
+    
+    st.dataframe(df_dist[cols].style.background_gradient(cmap='YlGn'), use_container_width=True)
 
-    st.dataframe(df_dist_num.style.background_gradient(cmap='YlGn', subset=cols).format(lambda x: f"{x:.4f} ({x:.2%})", subset=cols), use_container_width=True)
-
-    # 9. INTEGRATED EXCEL EXPORT (ALL WEB DATA INCLUDED)
+    # --- EXCEL DOWNLOAD (5 SHEETS - FULL ENGLISH) ---
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-        # Sheet 1: Matrix Data
         df_res.to_excel(writer, index=False, sheet_name='Item_Analysis')
-        
-        # Sheet 2: Distractor Data
+        df_ranking.to_excel(writer, index=False, sheet_name='Student_Ranking')
         df_dist_final.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         
-        # Sheet 3: Reliability & Summary Metrics (Everything in the metrics bar)
+        # Summary and Interpretation Sheet
         summary_data = {
-            "Statistic Metric": ["Students (N)", "Items (k)", "Mean Score", "Std. Deviation", "KR-20", "Cronbach's Alpha", "SEM"],
-            "Value": [n_students, n_items, mean_score, std_score, kr20, alpha, sem]
+            "Metric": ["Students (N)", "Items (k)", "Mean Score", "Std. Deviation", "KR-20", "Alpha", "SEM", "Reliability Status"],
+            "Value": [n_students, n_items, mean_score, std_score, kr20, alpha, sem, reliability_desc]
         }
         pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='Reliability_Summary')
+        
+        interpretation_data = {
+            "Factor": ["Reliability", "SEM", "Calculation Method"],
+            "Descriptive Interpretation": [
+                f"The instrument shows {reliability_desc} internal consistency.",
+                f"Standard Error of Measurement is {sem:.4f}, indicating precision of observed scores.",
+                "Parameters calculated using Population Variance (ddof=0) for academic rigor."
+            ]
+        }
+        pd.DataFrame(interpretation_data).to_excel(writer, index=False, sheet_name='Interpretation_Report')
             
-    st.download_button(
-        label="📥 Download Full Report (3 Sheets)", 
-        data=buf.getvalue(), 
-        file_name="Complete_Item_Analysis_Report.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    st.download_button(label="📥 Download Full Report (5 Sheets)", data=buf.getvalue(), file_name="Complete_Item_Analysis_Report.xlsx")
