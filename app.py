@@ -138,23 +138,17 @@ if student_file and key_file:
     m6.metric("Alpha", f"{alpha:.4f}")
     m7.metric("SEM (Error)", f"{sem:.4f}")
 
-    # --- DESCRIPTIVE INTERPRETATION (WEB OUTPUT) ---
-    st.divider()
-    st.header("📝 Methodological Interpretation")
+    # --- DESCRIPTIVE INTERPRETATION (WEB) ---
+    st.subheader("📝 Descriptive Interpretation")
+    rel_eval = "Excellent" if kr20 >= 0.9 else "High" if kr20 >= 0.8 else "Acceptable" if kr20 >= 0.7 else "Low"
     
-    reliability_desc = "Excellent" if kr20 >= 0.9 else "High" if kr20 >= 0.8 else "Acceptable" if kr20 >= 0.7 else "Low"
-    
-    col_desc1, col_desc2 = st.columns(2)
-    with col_desc1:
-        st.subheader("Reliability Analysis")
-        st.write(f"**Status:** {reliability_desc}")
-        st.write(f"**Coefficient (KR-20/Alpha):** {kr20:.4f}")
-        st.write("**Note:** Calculation uses Population Variance (ddof=0). For dichotomous items, KR-20 and Cronbach's Alpha yield identical results.")
-    
-    with col_desc2:
-        st.subheader("Measurement Precision")
-        st.write(f"**Standard Error of Measurement (SEM):** {sem:.4f}")
-        st.write("**Interpretation:** This value indicates the standard deviation of errors of measurement. Student true scores are estimated to fluctuate within this range.")
+    col_int1, col_int2 = st.columns(2)
+    with col_int1:
+        st.info(f"**Test Reliability:** The KR-20 coefficient of {kr20:.4f} indicates **{rel_eval}** internal consistency. "
+                f"This suggests that the instrument is {'highly stable' if kr20 >= 0.8 else 'sufficient'} for measuring the intended academic constructs.")
+    with col_int2:
+        st.warning(f"**Measurement Error:** The SEM of {sem:.4f} indicates that a student's observed score may fluctuate within this range "
+                   f"relative to their theoretical true score. A lower SEM reflects higher precision in score estimation.")
 
     # --- ITEM MATRIX ---
     st.subheader("📋 Comprehensive Item Statistics Matrix")
@@ -208,21 +202,23 @@ if student_file and key_file:
         df_ranking.to_excel(writer, index=False, sheet_name='Student_Ranking')
         df_dist_final.to_excel(writer, index=True, sheet_name='Distractor_Analysis')
         
-        # Summary and Interpretation Sheet
         summary_data = {
-            "Metric": ["Students (N)", "Items (k)", "Mean Score", "Std. Deviation", "KR-20", "Alpha", "SEM", "Reliability Status"],
-            "Value": [n_students, n_items, mean_score, std_score, kr20, alpha, sem, reliability_desc]
+            "Metric": ["Students (N)", "Items (k)", "Mean Score", "Std. Deviation", "KR-20", "Alpha", "SEM"],
+            "Value": [n_students, n_items, mean_score, std_score, kr20, alpha, sem]
         }
         pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='Reliability_Summary')
         
+        # ADDED: Interpretation Sheet in Excel
         interpretation_data = {
-            "Factor": ["Reliability", "SEM", "Calculation Method"],
+            "Statistical Category": ["Reliability (KR-20)", "Precision (SEM)", "Item Difficulty (p)", "Item Discrimination (d)"],
+            "Value/Status": [f"{kr20:.4f} ({rel_eval})", f"{sem:.4f}", "Varies by item", "Varies by item"],
             "Descriptive Interpretation": [
-                f"The instrument shows {reliability_desc} internal consistency.",
-                f"Standard Error of Measurement is {sem:.4f}, indicating precision of observed scores.",
-                "Parameters calculated using Population Variance (ddof=0) for academic rigor."
+                f"The instrument shows {rel_eval} reliability. High values (>0.70) indicate consistency in measurement.",
+                f"The standard error of {sem:.4f} suggests the margin of error for individual scores.",
+                "Items with p-values between 0.30 and 0.70 are methodologically preferred for balanced tests.",
+                "Items with d >= 0.30 effectively distinguish between high and low performing students."
             ]
         }
-        pd.DataFrame(interpretation_data).to_excel(writer, index=False, sheet_name='Interpretation_Report')
+        pd.DataFrame(interpretation_data).to_excel(writer, index=False, sheet_name='Interpretive_Report')
             
     st.download_button(label="📥 Download Full Report (5 Sheets)", data=buf.getvalue(), file_name="Complete_Item_Analysis_Report.xlsx")
