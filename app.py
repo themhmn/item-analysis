@@ -243,9 +243,19 @@ if student_file and key_file:
     df_dist_final = df_dist[cols].copy()
     for col in cols: df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
     
-    df_dist_final['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([str(opt) for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
+    st.dataframe(
+        df_dist_final.style.background_gradient(
+            cmap='YlGn', 
+            gmap=df_dist[cols]
+        ), 
+        use_container_width=True
+    )
     
-    st.dataframe(df_dist_final.style.background_gradient(cmap='YlGn', subset=cols, gmap=df_dist[cols]), use_container_width=True)
+    # Tampilkan kolom interpretasi secara terpisah atau setelah dataframe di atas jika masih dibutuhkan
+    st.write("**Interpretation:**")
+    for item, row in df_dist[cols].iterrows():
+        effective = [str(opt) for opt, val in row.items() if val >= 0.05 and opt != 'N/A']
+        st.write(f"- {item}: Effective: {', '.join(effective)}")
 
     # --- EXCEL DOWNLOAD (5 SHEETS - FULL ENGLISH) ---
     buf = io.BytesIO()
