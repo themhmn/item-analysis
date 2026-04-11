@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from scipy.stats import pointbiserialr
 import io
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
 
 # ======================================================================
 # ACADEMIC ITEM ANALYSIS - RIGOROUS ENGLISH VERSION (2026)
@@ -181,6 +184,350 @@ if student_file and key_file:
     m5.metric("KR-20", f"{kr20:.4f}")
     m6.metric("Alpha", f"{alpha:.4f}")
     m7.metric("SEM (Error)", f"{sem:.4f}")
+    
+    # ======================================================================
+    # VISUALIZATION SECTION - PUBLICATION QUALITY
+    # ======================================================================
+    st.subheader("📊 Item Difficulty Visualization (p & q Stacked Bar Chart)")
+    
+    # --- STACKED BAR CHART FOR p AND q (1 BAR CONTAINING BOTH p AND q) ---
+    df_pq = df_res[['Item', 'p', 'q']].copy()
+    df_pq_melted = df_pq.melt(id_vars=['Item'], var_name='Component', value_name='Proportion')
+    
+    # Color mapping for p and q
+    color_map = {'p': '#2ecc71', 'q': '#e74c3c'}
+    
+    fig_pq = go.Figure()
+    
+    # Add p bars (bottom portion)
+    fig_pq.add_trace(go.Bar(
+        name='p (Correct / Difficulty)',
+        x=df_pq['Item'],
+        y=df_pq['p'],
+        marker_color='#2ecc71',
+        text=df_pq['p'].apply(lambda x: f'{x:.3f}'),
+        textposition='inside',
+        textfont=dict(color='white', size=11, family='Arial Black'),
+        hovertemplate='<b>%{x}</b><br>p (Difficulty): %{y:.3f}<br>q (Incorrect): %{customdata:.3f}<extra></extra>',
+        customdata=df_pq['q'],
+        width=0.7
+    ))
+    
+    # Add q bars (top portion - stacked)
+    fig_pq.add_trace(go.Bar(
+        name='q (Incorrect / 1-p)',
+        x=df_pq['Item'],
+        y=df_pq['q'],
+        marker_color='#e74c3c',
+        text=df_pq['q'].apply(lambda x: f'{x:.3f}'),
+        textposition='inside',
+        textfont=dict(color='white', size=11, family='Arial Black'),
+        hovertemplate='<b>%{x}</b><br>q (Incorrect): %{y:.3f}<extra></extra>',
+        width=0.7
+    ))
+    
+    fig_pq.update_layout(
+        barmode='stack',
+        title=dict(
+            text='<b>Item Difficulty Distribution: p (Correct) vs q (Incorrect)</b><br><sup>Each bar represents 100% of responses per item</sup>',
+            font=dict(size=16, family='Arial Black'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title='<b>Item Number</b>',
+            tickangle=45,
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black')
+        ),
+        yaxis=dict(
+            title='<b>Proportion of Responses</b>',
+            range=[0, 1],
+            tickformat='.0%',
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        legend=dict(
+            title='<b>Component</b>',
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5,
+            font=dict(size=12)
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
+        height=500,
+        margin=dict(t=80, b=80, l=60, r=60)
+    )
+    
+    # Add horizontal reference lines for difficulty thresholds
+    fig_pq.add_hline(y=0.70, line_dash="dash", line_color="#27ae60", opacity=0.7,
+                     annotation_text="Easy threshold (0.70)", annotation_position="top right")
+    fig_pq.add_hline(y=0.30, line_dash="dash", line_color="#e67e22", opacity=0.7,
+                     annotation_text="Difficult threshold (0.30)", annotation_position="bottom right")
+    
+    st.plotly_chart(fig_pq, use_container_width=True)
+    
+    # --- ADDITIONAL VISUALIZATION 1: Discrimination Index (d) Bar Chart ---
+    st.subheader("🎯 Item Discrimination Index (d)")
+    
+    # Color function for discrimination values
+    def get_d_color(d_val):
+        if d_val >= 0.4: return '#2ecc71'  # Excellent
+        elif d_val >= 0.3: return '#3498db'  # Good
+        elif d_val >= 0.2: return '#f1c40f'  # Fair
+        else: return '#e74c3c'  # Poor
+    
+    colors_d = [get_d_color(d) for d in df_res['d']]
+    
+    fig_d = go.Figure()
+    fig_d.add_trace(go.Bar(
+        x=df_res['Item'],
+        y=df_res['d'],
+        marker_color=colors_d,
+        text=df_res['d'].apply(lambda x: f'{x:.3f}'),
+        textposition='outside',
+        textfont=dict(size=11),
+        hovertemplate='<b>%{x}</b><br>Discrimination Index (d): %{y:.3f}<extra></extra>',
+        width=0.7
+    ))
+    
+    fig_d.update_layout(
+        title=dict(
+            text='<b>Item Discrimination Index (d)</b><br><sup>Upper-Lower Group Method (Kelley\'s %)</sup>',
+            font=dict(size=16, family='Arial Black'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title='<b>Item Number</b>',
+            tickangle=45,
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black')
+        ),
+        yaxis=dict(
+            title='<b>Discrimination Index (d)</b>',
+            range=[-0.1, 1.0],
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hoverlabel=dict(bgcolor='white', font_size=12),
+        height=450,
+        margin=dict(t=80, b=80)
+    )
+    
+    # Add reference lines
+    fig_d.add_hline(y=0.40, line_dash="dash", line_color="#2ecc71", opacity=0.7,
+                    annotation_text="Excellent (≥0.40)", annotation_position="top right")
+    fig_d.add_hline(y=0.30, line_dash="dash", line_color="#3498db", opacity=0.7,
+                    annotation_text="Good (≥0.30)", annotation_position="right")
+    fig_d.add_hline(y=0.20, line_dash="dash", line_color="#f1c40f", opacity=0.7,
+                    annotation_text="Fair (≥0.20)", annotation_position="bottom right")
+    
+    st.plotly_chart(fig_d, use_container_width=True)
+    
+    # --- ADDITIONAL VISUALIZATION 2: Point-Biserial Correlation (r_pbis) ---
+    st.subheader("📈 Point-Biserial Correlation (Item-Whole Correlation)")
+    
+    def get_r_color(r_val, threshold):
+        return '#2ecc71' if r_val >= threshold else '#e74c3c'
+    
+    colors_r = [get_r_color(r, validity_limit) for r in df_res['r_pbis']]
+    
+    fig_r = go.Figure()
+    fig_r.add_trace(go.Bar(
+        x=df_res['Item'],
+        y=df_res['r_pbis'],
+        marker_color=colors_r,
+        text=df_res['r_pbis'].apply(lambda x: f'{x:.3f}'),
+        textposition='outside',
+        textfont=dict(size=11),
+        hovertemplate='<b>%{x}</b><br>r_pbis: %{y:.3f}<extra></extra>',
+        width=0.7
+    ))
+    
+    fig_r.update_layout(
+        title=dict(
+            text=f'<b>Point-Biserial Correlation (r_pbis)</b><br><sup>Threshold for validity: {validity_limit}</sup>',
+            font=dict(size=16, family='Arial Black'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title='<b>Item Number</b>',
+            tickangle=45,
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black')
+        ),
+        yaxis=dict(
+            title='<b>Point-Biserial Correlation (r_pbis)</b>',
+            range=[-0.5, 1.0],
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hoverlabel=dict(bgcolor='white', font_size=12),
+        height=450,
+        margin=dict(t=80, b=80)
+    )
+    
+    fig_r.add_hline(y=validity_limit, line_dash="dash", line_color="#e74c3c", opacity=0.7,
+                    annotation_text=f"Validity threshold ({validity_limit})", annotation_position="bottom right")
+    
+    st.plotly_chart(fig_r, use_container_width=True)
+    
+    # --- ADDITIONAL VISUALIZATION 3: Score Distribution Histogram ---
+    st.subheader("📊 Score Distribution Analysis")
+    
+    fig_hist = go.Figure()
+    fig_hist.add_trace(go.Histogram(
+        x=total_scores,
+        nbinsx=20,
+        marker_color='#3498db',
+        marker_line_color='white',
+        marker_line_width=1,
+        opacity=0.85,
+        hovertemplate='Score: %{x}<br>Frequency: %{y}<extra></extra>'
+    ))
+    
+    # Add normal distribution curve overlay
+    from scipy.stats import norm
+    x_norm = np.linspace(total_scores.min(), total_scores.max(), 100)
+    y_norm = norm.pdf(x_norm, mean_score, std_score) * (len(total_scores) * (total_scores.max() - total_scores.min()) / 20)
+    
+    fig_hist.add_trace(go.Scatter(
+        x=x_norm,
+        y=y_norm,
+        mode='lines',
+        name='Normal Distribution',
+        line=dict(color='#e74c3c', width=2, dash='dash'),
+        hovertemplate='Theoretical density<br>Score: %{x:.1f}<extra></extra>'
+    ))
+    
+    fig_hist.update_layout(
+        title=dict(
+            text='<b>Distribution of Total Test Scores</b><br><sup>With theoretical normal curve overlay</sup>',
+            font=dict(size=16, family='Arial Black'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title='<b>Total Score</b>',
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray'
+        ),
+        yaxis=dict(
+            title='<b>Frequency</b>',
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray'
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hoverlabel=dict(bgcolor='white', font_size=12),
+        height=450,
+        margin=dict(t=80),
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5)
+    )
+    
+    # Add mean and median lines
+    fig_hist.add_vline(x=mean_score, line_dash="solid", line_color="#2ecc71", opacity=0.8,
+                       annotation_text=f"Mean: {mean_score:.2f}", annotation_position="top")
+    fig_hist.add_vline(x=total_scores.median(), line_dash="dot", line_color="#e67e22", opacity=0.8,
+                       annotation_text=f"Median: {total_scores.median():.2f}", annotation_position="top")
+    
+    st.plotly_chart(fig_hist, use_container_width=True)
+    
+    # --- ADDITIONAL VISUALIZATION 4: Difficulty vs Discrimination Scatter Plot ---
+    st.subheader("🔄 Item Diagnostics: Difficulty vs Discrimination")
+    
+    # Add decision-based coloring
+    decision_colors = {'RETAIN': '#27ae60', 'REVISE': '#f39c12', 'REJECT': '#c0392b'}
+    colors_decision = [decision_colors[dec] for dec in df_res['DECISION']]
+    
+    fig_scatter = go.Figure()
+    fig_scatter.add_trace(go.Scatter(
+        x=df_res['p'],
+        y=df_res['d'],
+        mode='markers+text',
+        marker=dict(
+            size=18,
+            color=colors_decision,
+            line=dict(width=2, color='white'),
+            symbol='circle'
+        ),
+        text=df_res['Item'],
+        textposition='middle center',
+        textfont=dict(size=10, color='white', family='Arial Black'),
+        hovertemplate='<b>Item %{text}</b><br>Difficulty (p): %{x:.3f}<br>Discrimination (d): %{y:.3f}<br>Decision: %{customdata}<extra></extra>',
+        customdata=df_res['DECISION']
+    ))
+    
+    # Add quadrant zones
+    fig_scatter.add_hrect(y0=0.40, y1=1.0, line_width=0, fillcolor="#2ecc71", opacity=0.08,
+                          annotation_text="Excellent Discrimination", annotation_position="top left")
+    fig_scatter.add_hrect(y0=0.30, y1=0.40, line_width=0, fillcolor="#3498db", opacity=0.08,
+                          annotation_text="Good", annotation_position="top left")
+    fig_scatter.add_hrect(y0=0.20, y1=0.30, line_width=0, fillcolor="#f1c40f", opacity=0.08,
+                          annotation_text="Fair", annotation_position="top left")
+    
+    fig_scatter.update_layout(
+        title=dict(
+            text='<b>Item Diagnostic Map: Difficulty (p) vs Discrimination (d)</b><br><sup>Colored by Retention Decision</sup>',
+            font=dict(size=16, family='Arial Black'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title='<b>Difficulty Index (p)</b>',
+            range=[0, 1],
+            tickformat='.2f',
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        yaxis=dict(
+            title='<b>Discrimination Index (d)</b>',
+            range=[-0.1, 1.0],
+            tickfont=dict(size=11),
+            title_font=dict(size=13, family='Arial Black'),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hoverlabel=dict(bgcolor='white', font_size=12),
+        height=500,
+        margin=dict(t=80, l=60, r=60, b=60)
+    )
+    
+    # Add vertical zones for difficulty
+    fig_scatter.add_vrect(x0=0.70, x1=1.0, line_width=0, fillcolor="#27ae60", opacity=0.08,
+                          annotation_text="Easy Zone", annotation_position="top right")
+    fig_scatter.add_vrect(x0=0.30, x1=0.70, line_width=0, fillcolor="#f39c12", opacity=0.08,
+                          annotation_text="Moderate", annotation_position="top right")
+    fig_scatter.add_vrect(x0=0, x1=0.30, line_width=0, fillcolor="#e74c3c", opacity=0.08,
+                          annotation_text="Difficult Zone", annotation_position="top right")
+    
+    st.plotly_chart(fig_scatter, use_container_width=True)
+    
+    # ======================================================================
+    # END OF VISUALIZATION SECTION
+    # ======================================================================
     
     st.subheader("🎯 Distractor Functionality Audit")
     min_ddi_global = df_res["Worst_DDI"].min()
