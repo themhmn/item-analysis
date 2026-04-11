@@ -348,19 +348,50 @@ if student_file and key_file:
 
     st.dataframe(df_ranking.style.apply(apply_rank_styling, axis=1), use_container_width=True)
 
-    # --- DISTRACTORS ---
+        # --- DISTRACTORS ---
     st.divider()
     st.subheader("🎯 Distractor Effectiveness")
     dist_data = [df[item].astype(str).str.upper().str.strip().value_counts(normalize=True).to_dict() | {"Item": item} for item in item_cols]
     df_dist = pd.DataFrame(dist_data).set_index('Item').fillna(0)
     cols = sorted([c for c in df_dist.columns if len(str(c)) == 1]) + sorted([c for c in df_dist.columns if len(str(c)) > 1])
     df_dist_final = df_dist[cols].copy()
-    for col in cols: df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
     
-    df_dist_final['Interpretation'] = df_dist[cols].apply(lambda row: f"Effective: {', '.join([str(opt) for opt, val in row.items() if val >= 0.05 and opt != 'N/A'])}", axis=1)
+    # Format angka ke persen
+    for col in cols: 
+        df_dist_final[col] = df_dist_final[col].apply(lambda x: f"{x:.4f} ({x:.2%})")
     
-    df_dist_formatted = df_dist[cols].style.format(lambda x: f"{x:.4f} ({x:.2%})").background_gradient(cmap='YlGn')
-    st.dataframe(df_dist_formatted, use_container_width=True)
+    # Pewarnaan berdasarkan nilai proporsi (menggunakan nilai asli, bukan string)
+    def color_distractor(val):
+        # val adalah string seperti "0.1234 (12.34%)", kita ekstrak nilai angkanya
+        try:
+            numeric_val = float(val.split(' ')[0])
+        except:
+            numeric_val = 0
+        
+        if numeric_val > 0.50:
+            return 'background-color: #2ecc71; color: white;'  # Hijau (dominant)
+        elif numeric_val > 0.25:
+            return 'background-color: #f1c40f; color: black;'  # Kuning (cukup)
+        elif numeric_val < 0.05 and numeric_val > 0:
+            return 'background-color: #e74c3c; color: white;'  # Merah (sangat rendah)
+        else:
+            return ''
+    
+    # Terapkan styling hanya pada kolom opsi (bukan kolom Item atau Interpretation)
+    style_dict = {col: color_distractor for col in cols}
+    
+    df_dist_styled = df_dist_final.style.applymap(color_distractor, subset=cols)
+    
+    # Tambah kolom interpretasi
+    df_dist_final['Interpretation'] = df_dist[cols].apply(
+        lambda row: f"⚠️ Perhatikan: {', '.join([str(opt) for opt, val in row.items() if val < 0.05 and val > 0 and opt != 'N/A'])}" if any(val < 0.05 and val > 0 for val in row.values()) 
+        else "✓ Semua opsi berfungsi", axis=1
+    )
+    
+    # Terapkan styling ke kolom interpretasi juga
+    df_dist_styled = df_dist_final.style.applymap(color_distractor, subset=cols)
+    
+    st.dataframe(df_dist_styled, use_container_width=True)
 
     # --- EXCEL DOWNLOAD ---
     buf = io.BytesIO()
