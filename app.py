@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from scipy.stats import pointbiserialr
 import io
-import matplotlib.pyplot as plt
 
 # ======================================================================
 # ACADEMIC ITEM ANALYSIS - RIGOROUS ENGLISH VERSION (2026)
@@ -224,119 +223,6 @@ if student_file and key_file:
 
     st.dataframe(df_res.style.apply(apply_item_styling, axis=1).format("{:.4f}", subset=["p", "q", "pq", "Var", "d", "Best_DDI", "Worst_DDI", "r_pbis"]), use_container_width=True)
 
-        # ======================================================================
-    # VISUALISASI BERDASARKAN OUTPUT (DITAMBAHKAN)
-    # ======================================================================
-    st.markdown("---")
-    st.markdown("<h2 style='text-align: center;'>📊 VISUALISASI HASIL ANALISIS ITEM</h2>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    # --- VISUALISASI 1: STACKED BAR CHART p DAN q ---
-    st.subheader("📊 Figure 1. Distribusi Kesulitan Item (p vs q)")
-    
-    fig1, ax1 = plt.subplots(figsize=(12, 6))
-    items = df_res['Item'].tolist()
-    p_vals = df_res['p'].tolist()
-    q_vals = df_res['q'].tolist()
-    
-    ax1.bar(items, p_vals, color='#2ecc71', label='p (Benar)', edgecolor='white')
-    ax1.bar(items, q_vals, bottom=p_vals, color='#e74c3c', label='q (Salah)', edgecolor='white')
-    
-    for i, (p, q) in enumerate(zip(p_vals, q_vals)):
-        if p > 0.05:
-            ax1.text(i, p/2, f'{p:.3f}', ha='center', va='center', fontsize=9, color='white', fontweight='bold')
-        if q > 0.05:
-            ax1.text(i, p + q/2, f'{q:.3f}', ha='center', va='center', fontsize=9, color='white', fontweight='bold')
-    
-    ax1.axhline(y=0.70, color='green', linestyle='--', label='Mudah (0.70)')
-    ax1.axhline(y=0.30, color='orange', linestyle='--', label='Sulit (0.30)')
-    ax1.set_xlabel('Item', fontsize=12)
-    ax1.set_ylabel('Proporsi', fontsize=12)
-    ax1.set_ylim(0, 1)
-    ax1.set_xticklabels(items, rotation=45, ha='right')
-    ax1.legend()
-    ax1.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    st.pyplot(fig1)
-    plt.close(fig1)
-    
-    # --- VISUALISASI 2: DAYA BEDA (d) ---
-    st.subheader("🎯 Figure 2. Indeks Daya Beda Item (d)")
-    
-    def get_d_color(d):
-        if d >= 0.4: return '#2ecc71'
-        elif d >= 0.3: return '#3498db'
-        elif d >= 0.2: return '#f1c40f'
-        else: return '#e74c3c'
-    
-    colors_d = [get_d_color(d) for d in df_res['d']]
-    
-    fig2, ax2 = plt.subplots(figsize=(12, 5))
-    bars = ax2.bar(items, df_res['d'], color=colors_d, edgecolor='black')
-    
-    for bar, d in zip(bars, df_res['d']):
-        ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01, f'{d:.3f}', ha='center', fontsize=9)
-    
-    ax2.axhline(y=0.40, color='#2ecc71', linestyle='--', label='Excellent (0.40)')
-    ax2.axhline(y=0.30, color='#3498db', linestyle='--', label='Good (0.30)')
-    ax2.axhline(y=0.20, color='#f1c40f', linestyle='--', label='Fair (0.20)')
-    ax2.set_xlabel('Item', fontsize=12)
-    ax2.set_ylabel('Daya Beda (d)', fontsize=12)
-    ax2.set_ylim(-0.05, 1.0)
-    ax2.set_xticklabels(items, rotation=45, ha='right')
-    ax2.legend()
-    ax2.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    st.pyplot(fig2)
-    plt.close(fig2)
-    
-    # --- VISUALISASI 3: SCATTER PLOT (LANGSUNG DARI df_res) ---
-    st.subheader("🔄 Figure 3. Peta Diagnostik Item (Difficulty vs Discrimination)")
-    
-    # Warna berdasarkan DECISION dari df_res
-    decision_colors = {'RETAIN': '#27ae60', 'REVISE': '#f39c12', 'REJECT': '#e74c3c'}
-    
-    fig3, ax3 = plt.subplots(figsize=(10, 8))
-    
-    # Plot setiap item SATU PER SATU dari df_res
-    for _, row in df_res.iterrows():
-        color = decision_colors[row['DECISION']]
-        ax3.scatter(row['p'], row['d'], s=200, c=color, edgecolors='black', linewidth=1.5, zorder=3)
-        ax3.annotate(row['Item'], (row['p'], row['d']), 
-                    xytext=(5, 5), textcoords='offset points',
-                    fontsize=10, fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-    
-    # Garis threshold
-    ax3.axhline(y=0.40, color='#2ecc71', linestyle='--', alpha=0.7, label='d = 0.40 (Excellent)')
-    ax3.axhline(y=0.30, color='#3498db', linestyle='--', alpha=0.7, label='d = 0.30 (Good)')
-    ax3.axhline(y=0.20, color='#f1c40f', linestyle='--', alpha=0.7, label='d = 0.20 (Fair)')
-    ax3.axvline(x=0.70, color='green', linestyle=':', alpha=0.7, label='p = 0.70 (Mudah)')
-    ax3.axvline(x=0.30, color='red', linestyle=':', alpha=0.7, label='p = 0.30 (Sulit)')
-    
-    ax3.set_xlabel('Difficulty (p) → Mudah', fontsize=12)
-    ax3.set_ylabel('Discrimination (d) → Baik', fontsize=12)
-    ax3.set_title('Peta Diagnostik Item', fontsize=14, fontweight='bold')
-    ax3.set_xlim(-0.05, 1.05)
-    ax3.set_ylim(-0.05, 1.05)
-    ax3.grid(alpha=0.3)
-    ax3.legend(loc='upper left', fontsize=9)
-    
-    # Tambahkan zona interpretasi
-    ax3.text(0.85, 0.92, 'IDEAL', fontsize=10, ha='center', bbox=dict(boxstyle='round', facecolor='#27ae60', alpha=0.3))
-    ax3.text(0.10, 0.92, 'SULIT\nTAPI BAGUS', fontsize=9, ha='center', bbox=dict(boxstyle='round', facecolor='#3498db', alpha=0.3))
-    ax3.text(0.85, 0.10, 'MUDAH\nDAYA BEDA RENDAH', fontsize=9, ha='center', bbox=dict(boxstyle='round', facecolor='#f1c40f', alpha=0.3))
-    ax3.text(0.10, 0.10, 'REJECT', fontsize=10, ha='center', fontweight='bold', bbox=dict(boxstyle='round', facecolor='#e74c3c', alpha=0.3))
-    
-    plt.tight_layout()
-    st.pyplot(fig3)
-    plt.close(fig3)
-    
-    # Verifikasi jumlah data
-    st.caption(f"✅ Figure 3 menampilkan {len(df_res)} item sesuai dengan data di tabel.")
-    
-    st.markdown("---")
-
     # --- RANKING TABLE ---
     st.subheader("🏆 Student Score Ranking & Grouping")
     def apply_rank_styling(row):
@@ -348,6 +234,7 @@ if student_file and key_file:
 
     st.dataframe(df_ranking.style.apply(apply_rank_styling, axis=1), use_container_width=True)
 
+    # --- DISTRACTORS ---
         # --- DISTRACTORS ---
     st.divider()
     st.subheader("🎯 Distractor Effectiveness")
