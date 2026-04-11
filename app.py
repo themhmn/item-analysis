@@ -5,6 +5,7 @@ from scipy.stats import pointbiserialr
 import io
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+import matplotlib.patches as mpatches
 
 # ======================================================================
 # ACADEMIC ITEM ANALYSIS - RIGOROUS ENGLISH VERSION (2026)
@@ -185,13 +186,18 @@ if student_file and key_file:
     m7.metric("SEM (Error)", f"{sem:.4f}")
     
     # ======================================================================
-    # VISUALIZATION SECTION - PUBLICATION QUALITY (ADDED)
+    # VISUALIZATION SECTION - PUBLICATION QUALITY (FIXED LAYOUT)
     # ======================================================================
     
-    # --- VISUALIZATION 1: STACKED BAR CHART FOR p AND q ---
-    st.subheader("📊 Item Difficulty Visualization (p & q Stacked Bar Chart)")
+    st.markdown("---")
+    st.markdown("<h2 style='text-align: center;'>📊 VISUALIZATION DASHBOARD</h2>", unsafe_allow_html=True)
+    st.markdown("---")
     
-    fig1, ax1 = plt.subplots(figsize=(12, 6))
+    # --- VISUALIZATION 1: STACKED BAR CHART FOR p AND q ---
+    st.markdown("<h3 style='margin-top: 20px; margin-bottom: 5px;'>📊 Item Difficulty: p vs q (Stacked Bar)</h3>", unsafe_allow_html=True)
+    st.caption("Setiap bar mewakili 100% respons siswa per item. Hijau = proporsi jawaban benar (p), Merah = proporsi jawaban salah (q)")
+    
+    fig1, ax1 = plt.subplots(figsize=(14, 6))
     
     items = df_res['Item'].tolist()
     p_vals = df_res['p'].tolist()
@@ -212,23 +218,23 @@ if student_file and key_file:
     
     ax1.set_xlabel('Item Number', fontsize=12, fontweight='bold')
     ax1.set_ylabel('Proportion of Responses', fontsize=12, fontweight='bold')
-    ax1.set_title('Item Difficulty Distribution: p (Correct) vs q (Incorrect)\nEach bar represents 100% of responses per item', fontsize=14, fontweight='bold')
     ax1.set_ylim(0, 1)
     ax1.legend(loc='upper right', fontsize=10)
     ax1.set_xticklabels(items, rotation=45, ha='right')
     ax1.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
-    ax1.set_facecolor('white')
+    ax1.set_facecolor('#f9f9f9')
     fig1.patch.set_facecolor('white')
     
     # Add threshold annotations
-    ax1.annotate('Easy threshold (0.70)', xy=(len(items)-1, 0.72), fontsize=9, color='#27ae60')
-    ax1.annotate('Difficult threshold (0.30)', xy=(len(items)-1, 0.32), fontsize=9, color='#e67e22')
+    ax1.annotate('Easy threshold (0.70)', xy=(len(items)-1, 0.72), fontsize=9, color='#27ae60', fontweight='bold')
+    ax1.annotate('Difficult threshold (0.30)', xy=(len(items)-1, 0.32), fontsize=9, color='#e67e22', fontweight='bold')
     
     st.pyplot(fig1)
     plt.close(fig1)
     
     # --- VISUALIZATION 2: Discrimination Index (d) Bar Chart ---
-    st.subheader("🎯 Item Discrimination Index (d)")
+    st.markdown("<h3 style='margin-top: 40px; margin-bottom: 5px;'>🎯 Item Discrimination Index (d)</h3>", unsafe_allow_html=True)
+    st.caption("Semakin tinggi nilai d, semakin baik item membedakan siswa pandai dan kurang pandai. Hijau = Excellent, Biru = Good, Kuning = Fair, Merah = Poor")
     
     def get_d_color(d_val):
         if d_val >= 0.4: return '#2ecc71'
@@ -238,7 +244,7 @@ if student_file and key_file:
     
     colors_d = [get_d_color(d) for d in df_res['d']]
     
-    fig2, ax2 = plt.subplots(figsize=(12, 5))
+    fig2, ax2 = plt.subplots(figsize=(14, 5))
     bars_d = ax2.bar(items, df_res['d'], color=colors_d, edgecolor='black', linewidth=0.5)
     
     # Add value labels
@@ -246,28 +252,29 @@ if student_file and key_file:
         height = bar.get_height()
         ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01, f'{d_val:.3f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
     
-    ax2.axhline(y=0.40, color='#2ecc71', linestyle='--', alpha=0.7, linewidth=1.5)
-    ax2.axhline(y=0.30, color='#3498db', linestyle='--', alpha=0.7, linewidth=1.5)
-    ax2.axhline(y=0.20, color='#f1c40f', linestyle='--', alpha=0.7, linewidth=1.5)
+    ax2.axhline(y=0.40, color='#2ecc71', linestyle='--', alpha=0.7, linewidth=1.5, label='Excellent (≥0.40)')
+    ax2.axhline(y=0.30, color='#3498db', linestyle='--', alpha=0.7, linewidth=1.5, label='Good (≥0.30)')
+    ax2.axhline(y=0.20, color='#f1c40f', linestyle='--', alpha=0.7, linewidth=1.5, label='Fair (≥0.20)')
     
     ax2.set_xlabel('Item Number', fontsize=12, fontweight='bold')
     ax2.set_ylabel('Discrimination Index (d)', fontsize=12, fontweight='bold')
-    ax2.set_title('Item Discrimination Index (d) - Upper-Lower Group Method', fontsize=14, fontweight='bold')
     ax2.set_ylim(-0.05, 1.0)
     ax2.set_xticklabels(items, rotation=45, ha='right')
     ax2.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
-    ax2.set_facecolor('white')
+    ax2.legend(loc='upper left', fontsize=9)
+    ax2.set_facecolor('#f9f9f9')
     fig2.patch.set_facecolor('white')
     
     st.pyplot(fig2)
     plt.close(fig2)
     
     # --- VISUALIZATION 3: Point-Biserial Correlation ---
-    st.subheader("📈 Point-Biserial Correlation (Item-Whole Correlation)")
+    st.markdown("<h3 style='margin-top: 40px; margin-bottom: 5px;'>📈 Point-Biserial Correlation (r_pbis)</h3>", unsafe_allow_html=True)
+    st.caption(f"Nilai positif yang tinggi menunjukkan item selaras dengan skor total. Hijau = Valid (≥{validity_limit}), Merah = Invalid")
     
     colors_r = ['#2ecc71' if r >= validity_limit else '#e74c3c' for r in df_res['r_pbis']]
     
-    fig3, ax3 = plt.subplots(figsize=(12, 5))
+    fig3, ax3 = plt.subplots(figsize=(14, 5))
     bars_r = ax3.bar(items, df_res['r_pbis'], color=colors_r, edgecolor='black', linewidth=0.5)
     
     for bar, r_val in zip(bars_r, df_res['r_pbis']):
@@ -277,69 +284,80 @@ if student_file and key_file:
         else:
             ax3.text(bar.get_x() + bar.get_width()/2., height - 0.05, f'{r_val:.3f}', ha='center', va='top', fontsize=9, fontweight='bold')
     
-    ax3.axhline(y=validity_limit, color='#e74c3c', linestyle='--', alpha=0.7, linewidth=1.5)
+    ax3.axhline(y=validity_limit, color='#e74c3c', linestyle='--', alpha=0.7, linewidth=1.5, label=f'Threshold: {validity_limit}')
     ax3.axhline(y=0, color='gray', linestyle='-', alpha=0.3, linewidth=0.5)
     
     ax3.set_xlabel('Item Number', fontsize=12, fontweight='bold')
     ax3.set_ylabel('Point-Biserial Correlation (r_pbis)', fontsize=12, fontweight='bold')
-    ax3.set_title(f'Point-Biserial Correlation (r_pbis) - Threshold: {validity_limit}', fontsize=14, fontweight='bold')
     ax3.set_ylim(-0.5, 1.0)
     ax3.set_xticklabels(items, rotation=45, ha='right')
     ax3.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
-    ax3.set_facecolor('white')
+    ax3.legend(loc='upper left', fontsize=9)
+    ax3.set_facecolor('#f9f9f9')
     fig3.patch.set_facecolor('white')
     
     st.pyplot(fig3)
     plt.close(fig3)
     
     # --- VISUALIZATION 4: Score Distribution Histogram ---
-    st.subheader("📊 Score Distribution Analysis")
+    st.markdown("<h3 style='margin-top: 40px; margin-bottom: 5px;'>📊 Score Distribution Analysis</h3>", unsafe_allow_html=True)
+    st.caption("Distribusi skor total siswa dengan garis mean (hijau) dan median (oranye)")
     
-    fig4, ax4 = plt.subplots(figsize=(12, 5))
-    ax4.hist(total_scores, bins=20, color='#3498db', edgecolor='white', linewidth=0.5, alpha=0.7, density=False)
-    ax4.axvline(x=mean_score, color='#2ecc71', linestyle='-', linewidth=2, label=f'Mean: {mean_score:.2f}')
-    ax4.axvline(x=total_scores.median(), color='#e67e22', linestyle='--', linewidth=2, label=f'Median: {total_scores.median():.2f}')
+    fig4, ax4 = plt.subplots(figsize=(14, 5))
+    n_bins = min(20, len(np.unique(total_scores)))
+    ax4.hist(total_scores, bins=n_bins, color='#3498db', edgecolor='white', linewidth=0.5, alpha=0.7, density=False)
+    ax4.axvline(x=mean_score, color='#2ecc71', linestyle='-', linewidth=2.5, label=f'Mean: {mean_score:.2f}')
+    ax4.axvline(x=total_scores.median(), color='#e67e22', linestyle='--', linewidth=2.5, label=f'Median: {total_scores.median():.2f}')
     
     ax4.set_xlabel('Total Score', fontsize=12, fontweight='bold')
     ax4.set_ylabel('Frequency', fontsize=12, fontweight='bold')
-    ax4.set_title('Distribution of Total Test Scores', fontsize=14, fontweight='bold')
     ax4.legend(loc='upper right', fontsize=10)
     ax4.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
-    ax4.set_facecolor('white')
+    ax4.set_facecolor('#f9f9f9')
     fig4.patch.set_facecolor('white')
     
     st.pyplot(fig4)
     plt.close(fig4)
     
-    # --- VISUALIZATION 5: Difficulty vs Discrimination Scatter Plot (FIXED) ---
-    st.subheader("🔄 Item Diagnostics: Difficulty vs Discrimination")
+    # --- VISUALIZATION 5: Difficulty vs Discrimination Scatter Plot (REDESIGNED) ---
+    st.markdown("<h3 style='margin-top: 40px; margin-bottom: 5px;'>🔄 Item Diagnostic Map: Difficulty (p) vs Discrimination (d)</h3>", unsafe_allow_html=True)
+    st.caption("Setiap titik mewakili satu item. Warna menunjukkan rekomendasi tindakan. Gunakan grafik ini untuk mengidentifikasi item yang perlu direvisi atau ditolak.")
     
     decision_colors_map = {'RETAIN': '#27ae60', 'REVISE': '#f39c12', 'REJECT': '#c0392b'}
+    decision_labels = {'RETAIN': '✓ RETAIN (Pertahankan)', 'REVISE': '⚠ REVISE (Revisi)', 'REJECT': '✗ REJECT (Tolak)'}
     colors_scatter = [decision_colors_map[dec] for dec in df_res['DECISION']]
     
-    fig5, ax5 = plt.subplots(figsize=(12, 8))
+    fig5, ax5 = plt.subplots(figsize=(14, 9))
     
-    scatter = ax5.scatter(df_res['p'], df_res['d'], c=colors_scatter, s=250, edgecolors='white', linewidth=2, alpha=0.9, zorder=3)
+    # Create scatter plot with larger markers
+    scatter = ax5.scatter(df_res['p'], df_res['d'], c=colors_scatter, s=300, 
+                          edgecolors='black', linewidth=1.5, alpha=0.9, zorder=3)
     
-    # Add item labels with offset to avoid overlap
+    # Add item labels with better positioning
     for i, item in enumerate(items):
         p_val = df_res['p'].iloc[i]
         d_val = df_res['d'].iloc[i]
         
-        # Dynamic offset based on position to avoid label overlap
-        offset_x = 0.015
-        offset_y = 0.025
+        # Smart label positioning to avoid overlap
+        if p_val > 0.85 and d_val > 0.85:
+            offset_x, offset_y = -0.08, -0.08
+        elif p_val > 0.85 and d_val < 0.15:
+            offset_x, offset_y = -0.08, 0.08
+        elif p_val < 0.15 and d_val > 0.85:
+            offset_x, offset_y = 0.08, -0.08
+        elif p_val < 0.15 and d_val < 0.15:
+            offset_x, offset_y = 0.08, 0.08
+        elif p_val > 0.85:
+            offset_x, offset_y = -0.08, 0
+        elif p_val < 0.15:
+            offset_x, offset_y = 0.08, 0
+        elif d_val > 0.85:
+            offset_x, offset_y = 0, -0.08
+        elif d_val < 0.15:
+            offset_x, offset_y = 0, 0.08
+        else:
+            offset_x, offset_y = 0.03, 0.03
         
-        # Adjust offset for edge cases
-        if p_val > 0.85:
-            offset_x = -0.03
-        if d_val > 0.85:
-            offset_y = -0.03
-        if p_val < 0.15:
-            offset_x = 0.03
-        if d_val < 0.15:
-            offset_y = 0.03
-            
         ax5.annotate(item, (p_val, d_val), 
                     textcoords="offset points", 
                     xytext=(offset_x * 100, offset_y * 100), 
@@ -347,48 +365,59 @@ if student_file and key_file:
                     va='center',
                     fontsize=11, 
                     fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.7))
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.85))
     
-    # Add quadrant background zones
-    # Excellent discrimination zone (d >= 0.40)
-    ax5.axhline(y=0.40, color='#2ecc71', linestyle='--', alpha=0.6, linewidth=1.5)
-    # Good discrimination zone (d >= 0.30)
-    ax5.axhline(y=0.30, color='#3498db', linestyle='--', alpha=0.6, linewidth=1.5)
-    # Fair discrimination zone (d >= 0.20)
-    ax5.axhline(y=0.20, color='#f1c40f', linestyle='--', alpha=0.6, linewidth=1.5)
-    # Easy threshold (p > 0.70)
-    ax5.axvline(x=0.70, color='#27ae60', linestyle='--', alpha=0.6, linewidth=1.5)
-    # Difficult threshold (p < 0.30)
-    ax5.axvline(x=0.30, color='#e74c3c', linestyle='--', alpha=0.6, linewidth=1.5)
+    # Add grid lines
+    ax5.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, zorder=1)
     
-    # Add shaded zones for visual clarity
-    ax5.axhspan(0.40, 1.0, alpha=0.08, color='#2ecc71', zorder=0)
-    ax5.axhspan(0.30, 0.40, alpha=0.08, color='#3498db', zorder=0)
-    ax5.axhspan(0.20, 0.30, alpha=0.08, color='#f1c40f', zorder=0)
-    ax5.axvspan(0.70, 1.0, alpha=0.05, color='#27ae60', zorder=0)
-    ax5.axvspan(0, 0.30, alpha=0.05, color='#e74c3c', zorder=0)
+    # Add threshold lines
+    ax5.axhline(y=0.40, color='#2ecc71', linestyle='--', alpha=0.8, linewidth=2, label='Excellent (d ≥ 0.40)')
+    ax5.axhline(y=0.30, color='#3498db', linestyle='--', alpha=0.8, linewidth=1.5, label='Good (d ≥ 0.30)')
+    ax5.axhline(y=0.20, color='#f1c40f', linestyle='--', alpha=0.8, linewidth=1.5, label='Fair (d ≥ 0.20)')
+    ax5.axvline(x=0.70, color='#27ae60', linestyle=':', alpha=0.8, linewidth=2, label='Easy (p > 0.70)')
+    ax5.axvline(x=0.30, color='#e74c3c', linestyle=':', alpha=0.8, linewidth=2, label='Difficult (p < 0.30)')
     
-    ax5.set_xlabel('Difficulty Index (p)', fontsize=13, fontweight='bold')
-    ax5.set_ylabel('Discrimination Index (d)', fontsize=13, fontweight='bold')
-    ax5.set_title('Item Diagnostic Map: Difficulty (p) vs Discrimination (d)\nColored by Retention Decision', fontsize=14, fontweight='bold')
+    # Add shaded background zones for better readability
+    # Excellent discrimination zone
+    ax5.axhspan(0.40, 1.05, alpha=0.1, color='#2ecc71', zorder=0)
+    # Good discrimination zone
+    ax5.axhspan(0.30, 0.40, alpha=0.1, color='#3498db', zorder=0)
+    # Fair discrimination zone
+    ax5.axhspan(0.20, 0.30, alpha=0.1, color='#f1c40f', zorder=0)
+    # Easy zone
+    ax5.axvspan(0.70, 1.05, alpha=0.08, color='#27ae60', zorder=0)
+    # Difficult zone
+    ax5.axvspan(-0.05, 0.30, alpha=0.08, color='#e74c3c', zorder=0)
+    
+    ax5.set_xlabel('Difficulty Index (p) → Easier', fontsize=13, fontweight='bold')
+    ax5.set_ylabel('Discrimination Index (d) → Better', fontsize=13, fontweight='bold')
     ax5.set_xlim(-0.05, 1.05)
     ax5.set_ylim(-0.05, 1.05)
-    ax5.grid(alpha=0.3, linestyle='-', linewidth=0.5, zorder=1)
-    ax5.set_facecolor('white')
+    ax5.set_facecolor('#f9f9f9')
     fig5.patch.set_facecolor('white')
     
-    # Add legend for decisions
-    legend_elements = [Patch(facecolor='#27ae60', edgecolor='black', label='RETAIN'),
-                       Patch(facecolor='#f39c12', edgecolor='black', label='REVISE'),
-                       Patch(facecolor='#c0392b', edgecolor='black', label='REJECT')]
-    ax5.legend(handles=legend_elements, loc='upper left', fontsize=11, framealpha=0.9)
+    # Create custom legend for decisions
+    decision_patches = [mpatches.Patch(color='#27ae60', label='RETAIN (Pertahankan)'),
+                        mpatches.Patch(color='#f39c12', label='REVISE (Revisi)'),
+                        mpatches.Patch(color='#c0392b', label='REJECT (Tolak)')]
     
-    # Add annotation text for zones
-    ax5.annotate('Excellent Discrimination', xy=(0.72, 0.95), fontsize=9, style='italic', color='#2ecc71', alpha=0.7)
-    ax5.annotate('Good', xy=(0.72, 0.37), fontsize=9, style='italic', color='#3498db', alpha=0.7)
-    ax5.annotate('Fair', xy=(0.72, 0.23), fontsize=9, style='italic', color='#f1c40f', alpha=0.7)
-    ax5.annotate('Easy Zone →', xy=(0.72, 0.05), fontsize=9, style='italic', color='#27ae60', alpha=0.7)
-    ax5.annotate('← Difficult Zone', xy=(0.03, 0.05), fontsize=9, style='italic', color='#e74c3c', alpha=0.7)
+    # Combine legends
+    legend1 = ax5.legend(handles=decision_patches, loc='upper left', fontsize=10, title='DECISION', title_fontsize=11, framealpha=0.95)
+    legend2 = ax5.legend(loc='lower right', fontsize=9, framealpha=0.95)
+    ax5.add_artist(legend1)
+    
+    # Add annotation boxes for interpretation
+    props = dict(boxstyle='round', facecolor='white', alpha=0.85, edgecolor='gray')
+    
+    # Zone annotations
+    ax5.text(0.88, 0.92, 'IDEAL ZONE', transform=ax5.transData, fontsize=10,
+            verticalalignment='top', bbox=props, fontweight='bold', color='#27ae60')
+    ax5.text(0.05, 0.92, 'Too Hard\nGood Disc.', transform=ax5.transData, fontsize=9,
+            verticalalignment='top', bbox=props, ha='left')
+    ax5.text(0.88, 0.12, 'Too Easy\nPoor Disc.', transform=ax5.transData, fontsize=9,
+            verticalalignment='bottom', bbox=props, ha='right')
+    ax5.text(0.05, 0.12, 'Poor Quality', transform=ax5.transData, fontsize=9,
+            verticalalignment='bottom', bbox=props, ha='left', color='#c0392b')
     
     st.pyplot(fig5)
     plt.close(fig5)
