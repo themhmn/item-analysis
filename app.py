@@ -56,7 +56,7 @@ div[data-testid="stExpander"] { border: 1px solid #30363d; border-radius:6px; }
 """, unsafe_allow_html=True)
 
 # ── Title ────────────────────────────────────────────────────────────────
-st.markdown("# ITEM ANALYSIS by Muhaimin Abdullah")
+st.markdown("# 📊 ITEM ANALYSIS PRO")
 st.markdown("**Classical Test Theory (CTT) + Item Response Theory (IRT 1PL / 2PL / 3PL)** · *Methodologically Rigorous · 2026 Edition*")
 st.divider()
 
@@ -687,7 +687,7 @@ if student_file and key_file:
                 .apply(apply_item_styling, axis=1)
                 .format("{:.4f}", subset=["p", "q", "pq", "Var", "p_Upper", "p_Lower",
                                           "d", "Best_DDI", "Worst_DDI", "r_pbis"]),
-            use_container_width=True
+            use_container_width=True, height=500
         )
 
         # ── CTT Charts ────────────────────────────────────────────────
@@ -1046,7 +1046,7 @@ if student_file and key_file:
 
         st.dataframe(
             df_ranking_display.style.apply(apply_rank_styling, axis=1),
-            use_container_width=True
+            use_container_width=True, height=500
         )
 
     # ──────────────────────────────────────────────────────────────────
