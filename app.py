@@ -417,8 +417,10 @@ COLORS = {
 
 if student_file and key_file:
     # ── Load Data ────────────────────────────────────────────────────
-    df = pd.read_csv(student_file).fillna("N/A")
+    df = pd.read_csv(student_file)
+    df = df.dropna(subset=[df.columns[0]])
     df_key = pd.read_csv(key_file)
+    df = df.fillna("N/A")
 
     item_cols  = df.columns[1:]
     id_col_name = df.columns[0]
