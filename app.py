@@ -12,11 +12,11 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ======================================================================
-# ACADEMIC ITEM ANALYSIS PRO — CTT + IRT SUITE (2026)
+# ACADEMIC ITEM ANALYSIS — CTT + IRT SUITE (2026)
 # Reformasi Total: CTT Rigorous + IRT 1PL/2PL/3PL + Auto-Interpretation
 # ======================================================================
 
-st.set_page_config(page_title="Item Analysis Pro", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Item Analysis Pro by Muhaimin Abdullah", page_icon="📊", layout="wide")
 
 # ── Custom CSS ──────────────────────────────────────────────────────────
 st.markdown("""
