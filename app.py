@@ -13,7 +13,7 @@ warnings.filterwarnings('ignore')
 
 # ======================================================================
 # ACADEMIC ITEM ANALYSIS — CTT + IRT SUITE (2026)
-# Reformasi Total: CTT Rigorous + IRT 1PL/2PL/3PL + Auto-Interpretation
+# CTT + IRT 1PL/2PL/3PL + Auto-Interpretation
 # ======================================================================
 
 st.set_page_config(page_title="Item Analysis Pro by Muhaimin Abdullah", page_icon="📊", layout="wide")
@@ -56,8 +56,8 @@ div[data-testid="stExpander"] { border: 1px solid #30363d; border-radius:6px; }
 """, unsafe_allow_html=True)
 
 # ── Title ────────────────────────────────────────────────────────────────
-st.markdown("# 📊 ITEM ANALYSIS by Muhaimin Abdullah")
-st.markdown("**Classical Test Theory (CTT) + Item Response Theory (IRT 1PL / 2PL / 3PL)** · *Methodologically Rigorous · 2026 Edition*")
+st.markdown("# ITEM ANALYSIS by Muhaimin Abdullah")
+st.markdown("**Classical Test Theory (CTT) + Item Response Theory (IRT 1PL / 2PL / 3PL)** · *Methodologically Validated · 2026 Edition*")
 st.divider()
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1286,11 +1286,11 @@ if student_file and key_file:
 
 else:
     # ── Welcome / Instructions ──────────────────────────────────────────
-    st.markdown("### 🚀 Getting Started")
+    st.markdown("### Getting Started")
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("""
-**Step 1: Prepare Student CSV**
+**Step 1: Prepare Student CSV**, use the following format:
 ```
 StudentID, Q1, Q2, Q3
 S001,       A,  C,  B
